@@ -1,0 +1,570 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { useIncidencia, useUpdateAtencion, useUpdateIncidencia, useAssignSerenos, useUploadEvidencia } from '@/hooks/useIncidencias';
+import { useSerenosActivos } from '@/hooks/useSerenos';
+import {
+  useEstadoIncidencias, useEstadoProcesos, useGeneroAgresor,
+  useGeneroVictima, useSeveridadProcesos, useSeveridades, useMedios, useOperadores,
+} from '@/hooks/useCatalogos';
+import EstadoBadge from '@/components/incidencias/EstadoBadge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowLeft, Save, Upload, UserCheck, X, FileText, Film, File, ZoomIn } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { formatDate } from '@/lib/date';
+import type { UpdateAtencionDto } from '@/types';
+
+const MapView = dynamic(() => import('@/components/mapa/MapView'), { ssr: false });
+
+function DataRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="text-gray-500 min-w-40 font-medium">{label}:</span>
+      <span className="text-gray-800">{value || <span className="text-gray-400 italic">Sin datos</span>}</span>
+    </div>
+  );
+}
+
+export default function IncidenciaDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
+  const router = useRouter();
+  const incId = Number(id);
+
+  const { data: inc, isLoading } = useIncidencia(incId);
+  const { data: estados,           isLoading: loadingEstados }           = useEstadoIncidencias();
+  const { data: estadosProceso,   isLoading: loadingEstadosProceso }   = useEstadoProcesos();
+  const { data: generosAgresor,   isLoading: loadingGenerosAgresor }   = useGeneroAgresor();
+  const { data: generosVictima,   isLoading: loadingGenerosVictima }   = useGeneroVictima();
+  const { data: severidadProcesos, isLoading: loadingSeveridadProcesos } = useSeveridadProcesos();
+  const { data: severidades,       isLoading: loadingSeveridades }       = useSeveridades();
+  const { data: medios,            isLoading: loadingMedios }            = useMedios();
+  const { data: operadores,        isLoading: loadingOperadores }        = useOperadores();
+  const { data: serenos } = useSerenosActivos();
+
+  const updateAtencion = useUpdateAtencion(incId);
+  const updateInc = useUpdateIncidencia(incId);
+  const assignSerenos = useAssignSerenos(incId);
+  const uploadEvidencia = useUploadEvidencia(incId);
+
+  const [atencionForm, setAtencionForm] = useState<UpdateAtencionDto>({});
+  const [serenoSearch, setSerenoSearch] = useState('');
+  const [fileInput, setFileInput] = useState<File | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  const BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3000';
+
+  function getEvidenciaUrl(rutaArchivo?: string | null, nombreArchivo?: string | null): string | null {
+    if (rutaArchivo) {
+      // Subida directamente por cecom → ./uploads/filename.ext
+      const normalized = rutaArchivo.replace(/\\/g, '/');
+      const clean = normalized.startsWith('/') ? normalized.slice(1) : normalized;
+      return `${BASE_URL}/${clean}`;
+    }
+    if (nombreArchivo) {
+      // Copiado por srvi-backend → EXTERNAL_FILES_PATH/filename.ext
+      return `${BASE_URL}/files/${nombreArchivo}`;
+    }
+    return null;
+  }
+
+  function isImage(nombre: string) { return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(nombre); }
+  function isVideo(nombre: string) { return /\.(mp4|webm|ogg|avi|mov)$/i.test(nombre); }
+
+  if (isLoading) {
+    return <div className="space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  }
+
+  if (!inc) {
+    return <div className="text-center py-16 text-gray-400">Incidencia no encontrada</div>;
+  }
+
+  const assignedSerenoIds = (inc.serenos || []).map((s) => s.sereno.id);
+  const filteredSerenos = serenos?.filter(
+    (s) =>
+      `${s.nombres} ${s.apellidoPaterno} ${s.dni}`.toLowerCase().includes(serenoSearch.toLowerCase())
+  );
+
+  async function handleAtencionSubmit() {
+    try {
+      await updateAtencion.mutateAsync(atencionForm);
+      toast.success('Atención registrada');
+    } catch {
+      toast.error('Error al guardar');
+    }
+  }
+
+  async function handleEstadoChange(situacionId: string) {
+    try {
+      await updateInc.mutateAsync({ situacionId: Number(situacionId) });
+      toast.success('Estado actualizado');
+    } catch {
+      toast.error('Error al actualizar estado');
+    }
+  }
+
+  async function handleToggleSereno(serenoId: number) {
+    const ids = assignedSerenoIds.includes(serenoId)
+      ? assignedSerenoIds.filter((id) => id !== serenoId)
+      : [...assignedSerenoIds, serenoId];
+    try {
+      await assignSerenos.mutateAsync(ids);
+      toast.success('Serenos actualizados');
+    } catch {
+      toast.error('Error al asignar sereno');
+    }
+  }
+
+  async function handleUpload() {
+    if (!fileInput) return;
+    const fd = new FormData();
+    fd.append('file', fileInput);
+    try {
+      await uploadEvidencia.mutateAsync(fd);
+      toast.success('Archivo subido');
+      setFileInput(null);
+    } catch {
+      toast.error('Error al subir archivo');
+    }
+  }
+
+  const lat = inc.latitud ? Number(inc.latitud) : undefined;
+  const lng = inc.longitud ? Number(inc.longitud) : undefined;
+
+  return (
+    <div className="max-w-5xl space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1">
+          <h2 className="text-xl font-bold text-gray-800 font-mono">{inc.codigoIncidencia || `#${inc.id}`}</h2>
+          <p className="text-sm text-gray-500">
+            {formatDate(inc.registradoEn, "dd 'de' MMMM yyyy, HH:mm")}
+          </p>
+        </div>
+        <EstadoBadge estado={inc.situacion?.descripcion} className="text-sm px-3 py-1" />
+        <Select onValueChange={handleEstadoChange} value={String(inc.situacionId || '')}>
+          <SelectTrigger className="h-9 w-44 text-sm">
+            <SelectValue placeholder="Cambiar estado" />
+          </SelectTrigger>
+          <SelectContent>
+            {estados?.map((e) => (
+              <SelectItem key={e.id} value={String(e.id)}>{e.descripcion}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Tabs defaultValue="general">
+        <TabsList className="bg-gray-100">
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="atencion">Atención</TabsTrigger>
+          <TabsTrigger value="serenos">Serenos</TabsTrigger>
+          <TabsTrigger value="evidencias">Evidencias</TabsTrigger>
+          <TabsTrigger value="mapa">Mapa</TabsTrigger>
+        </TabsList>
+
+        {/* TAB: General */}
+        <TabsContent value="general">
+          <Card className="border border-gray-200">
+            <CardContent className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+              <div className="space-y-2">
+                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Clasificación</p>
+                <DataRow label="Unidad" value={inc.unidad?.descripcion} />
+                <DataRow label="Tipo de caso" value={inc.tipoCaso?.codigo ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}` : inc.tipoCaso?.descripcion} />
+                <DataRow label="Subtipo" value={inc.subTipoCaso?.codigo ? `${inc.subTipoCaso.codigo} - ${inc.subTipoCaso.descripcion}${inc.subTipoCaso.urgencia ? ` (${inc.subTipoCaso.urgencia})` : ''}` : inc.subTipoCaso?.descripcion} />
+                <DataRow label="Severidad" value={inc.severidad?.descripcion} />
+                <DataRow label="Jurisdicción" value={inc.jurisdiccion?.nombre || inc.jurisdiccion?.codigo} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Canal</p>
+                <DataRow label="Medio" value={inc.medio?.descripcion} />
+                <DataRow label="Operador" value={inc.operador?.descripcion} />
+              </div>
+              <div className="space-y-2 mt-4">
+                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Reportante</p>
+                <DataRow label="Tipo" value={inc.tipoReportante?.descripcion} />
+                <DataRow label="Nombre" value={inc.nombreReportante} />
+                <DataRow label="Teléfono" value={inc.telefonoReportante} />
+              </div>
+              <div className="space-y-2 mt-4">
+                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Ubicación</p>
+                <DataRow label="Dirección" value={inc.direccion} />
+                <DataRow label="Latitud" value={lat ? String(lat) : undefined} />
+                <DataRow label="Longitud" value={lng ? String(lng) : undefined} />
+              </div>
+              <div className="md:col-span-2 mt-2 space-y-2">
+                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Descripción</p>
+                <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3 border border-gray-100">
+                  {inc.descripcion || <span className="text-gray-400 italic">Sin descripción</span>}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: Atención */}
+        <TabsContent value="atencion">
+          <Card className="border border-gray-200">
+            <CardContent className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1 md:col-span-2">
+                  <Label>Descripción de intervención</Label>
+                  <Textarea
+                    rows={3}
+                    defaultValue={inc.descripcionIntervencion || ''}
+                    onChange={(e) => setAtencionForm((f) => ({ ...f, descripcionIntervencion: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Nombre del agraviado</Label>
+                  <Input
+                    defaultValue={inc.nombreAgraviado || ''}
+                    onChange={(e) => setAtencionForm((f) => ({ ...f, nombreAgraviado: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Teléfono del agraviado</Label>
+                  <Input
+                    defaultValue={inc.telefonoAgraviado || ''}
+                    onChange={(e) => setAtencionForm((f) => ({ ...f, telefonoAgraviado: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Estado del proceso</Label>
+                  <Select
+                    key={`ep-${estadosProceso?.length}`}
+                    defaultValue={inc.estadoProcesoId ? String(inc.estadoProcesoId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, estadoProcesoId: Number(v) }))}
+                    disabled={loadingEstadosProceso}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingEstadosProceso ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {estadosProceso?.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Género agresor</Label>
+                  <Select
+                    key={`ga-${generosAgresor?.length}`}
+                    defaultValue={inc.generoAgresorId ? String(inc.generoAgresorId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, generoAgresorId: Number(v) }))}
+                    disabled={loadingGenerosAgresor}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingGenerosAgresor ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {generosAgresor?.map((g) => <SelectItem key={g.id} value={String(g.id)}>{g.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Género víctima</Label>
+                  <Select
+                    key={`gv-${generosVictima?.length}`}
+                    defaultValue={inc.generoVictimaId ? String(inc.generoVictimaId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, generoVictimaId: Number(v) }))}
+                    disabled={loadingGenerosVictima}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingGenerosVictima ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {generosVictima?.map((g) => <SelectItem key={g.id} value={String(g.id)}>{g.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Severidad del proceso</Label>
+                  <Select
+                    key={`sp-${severidadProcesos?.length}`}
+                    defaultValue={inc.severidadProcesoId ? String(inc.severidadProcesoId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, severidadProcesoId: Number(v) }))}
+                    disabled={loadingSeveridadProcesos}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingSeveridadProcesos ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {severidadProcesos?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Severidad</Label>
+                  <Select
+                    key={`sv-${severidades?.length}`}
+                    defaultValue={inc.severidadId ? String(inc.severidadId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, severidadId: Number(v) }))}
+                    disabled={loadingSeveridades}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingSeveridades ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {severidades?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Situación</Label>
+                  <Select
+                    key={`sit-${estados?.length}`}
+                    defaultValue={inc.situacionId ? String(inc.situacionId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, situacionId: Number(v) }))}
+                    disabled={loadingEstados}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingEstados ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {estados?.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Medio</Label>
+                  <Select
+                    key={`med-${medios?.length}`}
+                    defaultValue={inc.medioId ? String(inc.medioId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, medioId: Number(v) }))}
+                    disabled={loadingMedios}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingMedios ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {medios?.map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Operador</Label>
+                  <Select
+                    key={`op-${operadores?.length}`}
+                    defaultValue={inc.operadorId ? String(inc.operadorId) : undefined}
+                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, operadorId: Number(v) }))}
+                    disabled={loadingOperadores}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingOperadores ? 'Cargando...' : 'Seleccionar'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operadores?.map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.descripcion}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Fecha/Hora de atención</Label>
+                  <Input
+                    type="datetime-local"
+                    defaultValue={inc.atendidoEn ? inc.atendidoEn.slice(0, 16) : ''}
+                    onChange={(e) => setAtencionForm((f) => ({ ...f, atendidoEn: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <Button onClick={handleAtencionSubmit} className="bg-green-600 hover:bg-green-700" disabled={updateAtencion.isPending}>
+                <Save className="h-4 w-4 mr-2" /> Guardar Atención
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: Serenos */}
+        <TabsContent value="serenos">
+          <Card className="border border-gray-200">
+            <CardContent className="p-5 space-y-4">
+              <Input
+                placeholder="Buscar sereno por nombre o DNI..."
+                value={serenoSearch}
+                onChange={(e) => setSerenoSearch(e.target.value)}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                {filteredSerenos?.map((s) => {
+                  const assigned = assignedSerenoIds.includes(s.id);
+                  return (
+                    <div
+                      key={s.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                        assigned ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={() => handleToggleSereno(s.id)}
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {s.nombres} {s.apellidoPaterno} {s.apellidoMaterno}
+                        </p>
+                        <p className="text-xs text-gray-500">{s.dni} · {s.cargoSereno?.descripcion}</p>
+                      </div>
+                      {assigned ? (
+                        <UserCheck className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <span className="text-xs text-gray-400">+ Asignar</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {(inc.serenos || []).length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 font-medium">Serenos asignados:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(inc.serenos || []).map(({ sereno }) => (
+                      <span key={sereno.id} className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
+                        {sereno.nombres} {sereno.apellidoPaterno}
+                        <button onClick={() => handleToggleSereno(sereno.id)}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: Evidencias */}
+        <TabsContent value="evidencias">
+          <Card className="border border-gray-200">
+            <CardContent className="p-5 space-y-4">
+              {/* Upload */}
+              <div className="flex items-center gap-3">
+                <Input
+                  type="file"
+                  accept="image/*,video/*,.pdf,.doc,.docx"
+                  onChange={(e) => setFileInput(e.target.files?.[0] || null)}
+                  className="flex-1"
+                />
+                <Button onClick={handleUpload} disabled={!fileInput || uploadEvidencia.isPending} className="bg-green-600 hover:bg-green-700">
+                  <Upload className="h-4 w-4 mr-1" /> Subir
+                </Button>
+              </div>
+
+              {/* Galería */}
+              {(inc.evidencias || []).length === 0 ? (
+                <p className="text-center py-8 text-gray-400 text-sm">No hay evidencias adjuntas</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {(inc.evidencias || []).map((ev) => {
+                    const url = getEvidenciaUrl(ev.rutaArchivo, ev.nombreArchivo);
+                    const imagen = isImage(ev.nombreArchivo || '');
+                    const video  = isVideo(ev.nombreArchivo || '');
+
+                    return (
+                      <div key={ev.id} className="group relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex flex-col">
+                        {/* Previsualización */}
+                        {imagen && url ? (
+                          <button
+                            className="relative w-full aspect-square overflow-hidden bg-gray-100 flex items-center justify-center"
+                            onClick={() => setLightbox(url)}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={ev.nombreArchivo || 'evidencia'}
+                              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            />
+                            <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                            </span>
+                          </button>
+                        ) : video && url ? (
+                          <div className="w-full aspect-square bg-gray-900 flex items-center justify-center">
+                            <video src={url} className="w-full h-full object-contain" controls />
+                          </div>
+                        ) : (
+                          <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
+                            {(ev.nombreArchivo || '').endsWith('.pdf')
+                              ? <FileText className="h-10 w-10 text-red-400" />
+                              : <File className="h-10 w-10 text-gray-400" />}
+                          </div>
+                        )}
+
+                        {/* Info + descarga */}
+                        <div className="p-2 flex flex-col gap-0.5">
+                          <p className="text-xs text-gray-700 truncate font-medium" title={ev.nombreArchivo || ''}>
+                            {ev.nombreArchivo || 'archivo'}
+                          </p>
+                          {ev.fechaHoraRegistro && (
+                            <p className="text-xs text-gray-400">{formatDate(ev.fechaHoraRegistro, 'dd/MM/yy HH:mm')}</p>
+                          )}
+                          {url && (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={ev.nombreArchivo || true}
+                              className="text-xs text-green-600 hover:underline mt-0.5"
+                            >
+                              Descargar
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Lightbox */}
+          {lightbox && (
+            <div
+              className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+              onClick={() => setLightbox(null)}
+            >
+              <button
+                className="absolute top-4 right-4 text-white hover:text-gray-300"
+                onClick={() => setLightbox(null)}
+              >
+                <X className="h-8 w-8" />
+              </button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={lightbox}
+                alt="evidencia"
+                className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+        </TabsContent>
+
+        {/* TAB: Mapa */}
+        <TabsContent value="mapa">
+          <Card className="border border-gray-200">
+            <CardContent className="p-0 h-96 rounded-lg overflow-hidden">
+              {lat && lng ? (
+                <MapView
+                  incidencias={[inc]}
+                  center={[lat, lng]}
+                  zoom={16}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-400">
+                  Sin coordenadas registradas
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

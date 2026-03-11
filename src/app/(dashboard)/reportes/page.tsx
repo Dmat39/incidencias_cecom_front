@@ -1,0 +1,135 @@
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FileDown, FileBarChart } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '@/lib/api';
+import { useUnidades, useEstadoIncidencias } from '@/hooks/useCatalogos';
+
+interface ReportFilter {
+  fechaInicio?: string;
+  fechaFin?: string;
+  unidadId?: number;
+  situacionId?: number;
+}
+
+export default function ReportesPage() {
+  const [filters, setFilters] = useState<ReportFilter>({});
+  const [loading, setLoading] = useState(false);
+  const { data: unidades } = useUnidades();
+  const { data: estados } = useEstadoIncidencias();
+
+  async function handleDownload() {
+    setLoading(true);
+    try {
+      const response = await api.post('/reportes/excel', filters, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const fecha = new Date().toISOString().split('T')[0];
+      link.setAttribute('download', `incidencias_${fecha}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Reporte descargado');
+    } catch {
+      toast.error('Error al generar el reporte');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <Card className="border border-gray-200 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileBarChart className="h-5 w-5 text-green-600" />
+            Reporte de Incidencias
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label>Fecha inicio</Label>
+              <Input
+                type="date"
+                onChange={(e) => setFilters((f) => ({ ...f, fechaInicio: e.target.value || undefined }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Fecha fin</Label>
+              <Input
+                type="date"
+                onChange={(e) => setFilters((f) => ({ ...f, fechaFin: e.target.value || undefined }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Unidad</Label>
+              <Select onValueChange={(v) => setFilters((f) => ({ ...f, unidadId: v === 'all' ? undefined : Number(v) }))}>
+                <SelectTrigger><SelectValue placeholder="Todas las unidades" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {unidades?.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>{u.descripcion}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Estado</Label>
+              <Select onValueChange={(v) => setFilters((f) => ({ ...f, situacionId: v === 'all' ? undefined : Number(v) }))}>
+                <SelectTrigger><SelectValue placeholder="Todos los estados" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {estados?.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>{e.descripcion}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <Button
+              onClick={handleDownload}
+              disabled={loading}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 font-semibold"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  Generando...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <FileDown className="h-4 w-4" />
+                  Descargar Excel
+                </span>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border border-gray-100 bg-green-50/40">
+        <CardContent className="p-4 text-sm text-gray-600 space-y-1">
+          <p className="font-medium text-green-700">Información del reporte:</p>
+          <ul className="list-disc list-inside space-y-0.5 text-xs">
+            <li>Incluye código, fecha, unidad, tipo, dirección y estado de cada incidencia</li>
+            <li>Si no se selecciona rango de fechas, se incluyen todas las incidencias</li>
+            <li>El archivo se descarga en formato .xlsx compatible con Excel</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
