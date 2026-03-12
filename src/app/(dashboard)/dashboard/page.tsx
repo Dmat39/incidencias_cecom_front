@@ -98,7 +98,7 @@ export default function DashboardPage() {
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    {(stats?.byEstado || []).map((_, i) => (
+                    {(stats?.byEstado || []).map((_: unknown, i: number) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
