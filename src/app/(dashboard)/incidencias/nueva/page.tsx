@@ -20,7 +20,7 @@ import {
   useSeveridades, useJurisdicciones, useEstadoIncidencias,
 } from '@/hooks/useCatalogos';
 import type { CatalogoItem } from '@/hooks/useCatalogos';
-import type { CreateIncidenciaDto, Sereno } from '@/types';
+import type { CreateIncidenciaDto, Incidencia, Sereno } from '@/types';
 import { useSerenos } from '@/hooks/useSerenos';
 import api from '@/lib/api';
 import EvidenciasUploader, { type ArchivoEvidencia } from '@/components/incidencias/EvidenciasUploader';
@@ -139,36 +139,51 @@ export default function NuevaIncidenciaPage() {
   const lng = watch('longitud');
 
   async function onSubmit(values: FormData) {
+    // 1. Crear incidencia — si falla, parar aquí
+    if (!values.telefonoReportante?.trim()) {
+      values.telefonoReportante = 'No registra teléfono';
+    }
+    const payload = Object.fromEntries(
+      Object.entries(values).filter(([, v]) =>
+        v !== undefined && v !== null && v !== '' && !Number.isNaN(v as number)
+      )
+    ) as CreateIncidenciaDto;
+
+    let inc: Incidencia;
     try {
-      if (!values.telefonoReportante?.trim()) {
-        values.telefonoReportante = 'No registra teléfono';
-      }
-      const payload = Object.fromEntries(
-        Object.entries(values).filter(([, v]) =>
-          v !== undefined && v !== null && v !== '' && !Number.isNaN(v as number)
-        )
-      ) as CreateIncidenciaDto;
-      const inc = await createMutation.mutateAsync(payload);
-
-      // Si el reportante es un sereno, asignarlo automáticamente
-      if (reporterSerenoId && inc.id) {
-        await api.patch(`/incidencias/${inc.id}/serenos`, { serenosIds: [reporterSerenoId] });
-      }
-
-      // Subir evidencias una por una
-      for (const archivo of archivosEvidencia) {
-        const fd = new FormData();
-        fd.append('file', archivo.file);
-        await api.post(`/incidencias/${inc.id}/evidencias`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-      }
-
-      toast.success(`Incidencia ${inc.codigoIncidencia} registrada`);
-      router.push('/incidencias');
+      inc = await createMutation.mutateAsync(payload);
     } catch {
       toast.error('Error al registrar la incidencia');
+      return;
     }
+
+    // 2. Asignar sereno reportante — no crítico
+    if (reporterSerenoId && inc.id) {
+      try {
+        await api.patch(`/incidencias/${inc.id}/serenos`, { serenosIds: [reporterSerenoId] });
+      } catch {
+        console.warn('No se pudo asignar el sereno reportante');
+      }
+    }
+
+    // 3. Subir evidencias — no crítico, fallo no bloquea navegación
+    let evidenciasError = false;
+    for (const archivo of archivosEvidencia) {
+      try {
+        const fd = new (window.FormData)();
+        fd.append('file', archivo.file);
+        await api.post(`/incidencias/${inc.id}/evidencias`, fd);
+      } catch {
+        evidenciasError = true;
+      }
+    }
+
+    if (evidenciasError) {
+      toast.error('Incidencia registrada, pero algunas evidencias no se subieron');
+    } else {
+      toast.success(`Incidencia ${inc.codigoIncidencia} registrada`);
+    }
+    router.push('/incidencias');
   }
 
   return (
