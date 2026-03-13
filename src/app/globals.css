@@ -58,6 +58,14 @@
   }
 }
 
+/* Leaflet: eliminar outline negro al hacer clic en polígonos SVG */
+.leaflet-container path:focus {
+  outline: none;
+}
+.leaflet-interactive:focus {
+  outline: none;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

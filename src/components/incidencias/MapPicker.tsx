@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Polygon, Tooltip, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -16,6 +16,19 @@ L.Icon.Default.mergeOptions({
 const DEFAULT_LAT = -11.9699;
 const DEFAULT_LNG = -76.998;
 
+interface JurisdiccionFeature {
+  type: string;
+  properties: {
+    id: string;
+    name: string;
+    color: string;
+  };
+  geometry: {
+    type: string;
+    coordinates: number[][][];
+  };
+}
+
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const res = await fetch(
@@ -25,7 +38,6 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
     if (!res.ok) return '';
     const json = await res.json();
     const a = json.address ?? {};
-    // Construir dirección legible: calle número, barrio/distrito
     const parts: string[] = [];
     const road = a.road ?? a.pedestrian ?? a.footway ?? a.path ?? '';
     if (road) parts.push(road);
@@ -63,9 +75,19 @@ interface Props {
   lng?: number;
   onSelect: (lat: number, lng: number, address: string) => void;
   onLoading?: (loading: boolean) => void;
+  activeJurisdiccionName?: string;
 }
 
-export default function MapPicker({ lat, lng, onSelect, onLoading }: Props) {
+export default function MapPicker({ lat, lng, onSelect, onLoading, activeJurisdiccionName }: Props) {
+  const [jurisdicciones, setJurisdicciones] = useState<JurisdiccionFeature[]>([]);
+
+  useEffect(() => {
+    fetch('/juridiccion.geojson')
+      .then((r) => r.json())
+      .then((data) => setJurisdicciones(data?.features ?? []))
+      .catch(() => {});
+  }, []);
+
   return (
     <MapContainer
       center={[lat ?? DEFAULT_LAT, lng ?? DEFAULT_LNG]}
@@ -76,6 +98,33 @@ export default function MapPicker({ lat, lng, onSelect, onLoading }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+
+      {/* Polígonos de jurisdicciones */}
+      {jurisdicciones.map((j) => {
+        const name  = j.properties?.name ?? '';
+        const color = (j.properties?.color ?? '#3b82f6').trim();
+        const isActive = activeJurisdiccionName?.toLowerCase().trim() === name.toLowerCase().trim();
+        // GeoJSON coords son [lng, lat], Leaflet usa [lat, lng]
+        const positions = j.geometry.coordinates[0].map(
+          ([lngC, latC]) => [latC, lngC] as [number, number]
+        );
+        return (
+          <Polygon
+            key={j.properties?.id ?? name}
+            positions={positions}
+            pathOptions={{
+              color,
+              weight: isActive ? 3 : 1.5,
+              fillColor: color,
+              fillOpacity: isActive ? 0.25 : 0.08,
+              opacity: isActive ? 1 : 0.6,
+            }}
+          >
+            <Tooltip direction="center" offset={[0, 0]} opacity={0.9}>{name}</Tooltip>
+          </Polygon>
+        );
+      })}
+
       <ClickHandler onSelect={onSelect} onLoading={onLoading ?? (() => {})} />
       {lat && lng && <Marker position={[lat, lng]} />}
     </MapContainer>

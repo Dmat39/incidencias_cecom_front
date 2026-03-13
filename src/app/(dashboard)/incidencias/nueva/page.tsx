@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, Phone, MapPin } from 'lucide-react';
+import { ArrowLeft, Save, Phone, MapPin, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCreateIncidencia } from '@/hooks/useIncidencias';
 import {
@@ -20,7 +20,10 @@ import {
   useSeveridades, useJurisdicciones, useEstadoIncidencias,
 } from '@/hooks/useCatalogos';
 import type { CatalogoItem } from '@/hooks/useCatalogos';
-import type { CreateIncidenciaDto } from '@/types';
+import type { CreateIncidenciaDto, Sereno } from '@/types';
+import { useSerenos } from '@/hooks/useSerenos';
+import api from '@/lib/api';
+import EvidenciasUploader, { type ArchivoEvidencia } from '@/components/incidencias/EvidenciasUploader';
 
 const MapPicker = dynamic(() => import('@/components/incidencias/MapPicker'), { ssr: false });
 
@@ -67,15 +70,61 @@ export default function NuevaIncidenciaPage() {
   const [selectedUnidad,      setSelectedUnidad]      = useState<number | undefined>();
   const [selectedTipoCaso,    setSelectedTipoCaso]    = useState<number | undefined>();
   const [selectedMedio,       setSelectedMedio]       = useState<number | undefined>();
-  const [severidadAutoFilled, setSeveridadAutoFilled] = useState(false);
-  const [geocodingLoading,    setGeocodingLoading]    = useState(false);
+  const [severidadAutoFilled,    setSeveridadAutoFilled]    = useState(false);
+  const [geocodingLoading,       setGeocodingLoading]       = useState(false);
+  const [selectedTipoReportante, setSelectedTipoReportante] = useState<CatalogoItem | null>(null);
+  const [serenoQuery,            setSerenoQuery]            = useState('');
+  const [showSuggestions,        setShowSuggestions]        = useState(false);
+  const [reporterSerenoId,       setReporterSerenoId]       = useState<number | null>(null);
+  const [archivosEvidencia,      setArchivosEvidencia]      = useState<ArchivoEvidencia[]>([]);
+  const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const [jurisdiccionAutoFilled,  setJurisdiccionAutoFilled]  = useState(false);
+  const [activeJurisdiccionName,  setActiveJurisdiccionName]  = useState<string | undefined>();
+  const geojsonCache = useRef<any>(null);
+
+  async function autoDetectarJurisdiccion(lat: number, lng: number, juris: CatalogoItem[]) {
+    try {
+      if (!geojsonCache.current) {
+        const res = await fetch('/juridiccion.geojson');
+        geojsonCache.current = await res.json();
+      }
+      const { point, booleanPointInPolygon, polygon } = await import('@turf/turf');
+      const punto = point([lng, lat]);
+      const features: any[] = geojsonCache.current?.features ?? [];
+      for (const feat of features) {
+        if (!feat.geometry?.coordinates) continue;
+        const poly = polygon(feat.geometry.coordinates);
+        if (booleanPointInPolygon(punto, poly)) {
+          const nombre = (feat.properties?.name ?? '').toLowerCase().trim();
+          const match = juris.find((j) =>
+            (j.nombre ?? j.descripcion ?? '').toLowerCase().trim() === nombre
+          );
+          if (match) {
+            setActiveJurisdiccionName(feat.properties?.name);
+            return match.id;
+          }
+        }
+      }
+    } catch { /* silencioso */ }
+    setActiveJurisdiccionName(undefined);
+    return null;
+  }
 
   const { data: unidades }                                        = useUnidades();
   const { data: tiposCasoFiltrados, isLoading: loadingTipos }    = useTipoCasosByUnidad(selectedUnidad);
   const { data: subTiposFiltrados,  isLoading: loadingSubtipos } = useSubTipoCasosByTipo(selectedTipoCaso);
   const { data: medios }                                          = useMedios();
   const { data: operadoresFiltrados, isLoading: loadingOperadores } = useOperadoresByMedio(selectedMedio);
-  const { data: tipoReportantes }    = useTipoReportantes();
+  const { data: tipoReportantes } = useTipoReportantes();
+  const esSerenazgo = (selectedTipoReportante?.descripcion ?? selectedTipoReportante?.nombre ?? '').toLowerCase().includes('seren');
+  const { data: serenosData } = useSerenos({
+    search:     serenoQuery,
+    habilitado: true,
+    limit:      8,
+    page:       1,
+    enabled:    esSerenazgo && serenoQuery.length >= 2,
+  });
   const { data: severidades }        = useSeveridades();
   const { data: jurisdicciones }     = useJurisdicciones();
   const { data: estados }            = useEstadoIncidencias();
@@ -84,18 +133,37 @@ export default function NuevaIncidenciaPage() {
     resolver: zodResolver(schema),
   });
 
+  const { onChange: rhfNombreOnChange, ref: nombreRef, name: nombreName, onBlur: rhfNombreOnBlur } = register('nombreReportante');
+
   const lat = watch('latitud');
   const lng = watch('longitud');
 
   async function onSubmit(values: FormData) {
     try {
-      // Eliminar strings vacíos y NaN para no enviar campos inválidos al backend
+      if (!values.telefonoReportante?.trim()) {
+        values.telefonoReportante = 'No registra teléfono';
+      }
       const payload = Object.fromEntries(
         Object.entries(values).filter(([, v]) =>
           v !== undefined && v !== null && v !== '' && !Number.isNaN(v as number)
         )
       ) as CreateIncidenciaDto;
       const inc = await createMutation.mutateAsync(payload);
+
+      // Si el reportante es un sereno, asignarlo automáticamente
+      if (reporterSerenoId && inc.id) {
+        await api.patch(`/incidencias/${inc.id}/serenos`, { serenosIds: [reporterSerenoId] });
+      }
+
+      // Subir evidencias una por una
+      for (const archivo of archivosEvidencia) {
+        const fd = new FormData();
+        fd.append('file', archivo.file);
+        await api.post(`/incidencias/${inc.id}/evidencias`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
       toast.success(`Incidencia ${inc.codigoIncidencia} registrada`);
       router.push('/incidencias');
     } catch {
@@ -296,7 +364,14 @@ export default function NuevaIncidenciaPage() {
           <div className="p-5 grid grid-cols-2 gap-4">
             <Field label="Tipo de Reportante">
               <Controller name="tipoReportanteId" control={control} render={({ field }) => (
-                <Select onValueChange={(v) => field.onChange(Number(v))}>
+                <Select onValueChange={(v) => {
+                  field.onChange(Number(v));
+                  const item = tipoReportantes?.find((t: CatalogoItem) => t.id === Number(v)) ?? null;
+                  setSelectedTipoReportante(item);
+                  setSerenoQuery('');
+                  setShowSuggestions(false);
+                  setReporterSerenoId(null);
+                }}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>
                     {tipoReportantes?.map((t: CatalogoItem) => <SelectItem key={t.id} value={String(t.id)}>{t.descripcion}</SelectItem>)}
@@ -306,7 +381,61 @@ export default function NuevaIncidenciaPage() {
             </Field>
 
             <Field label="Nombre del Reportante">
-              <Input placeholder="Nombre completo" className="h-9 text-sm" {...register('nombreReportante')} />
+              <div className="relative">
+                <Input
+                  name={nombreName}
+                  ref={nombreRef}
+                  placeholder="Nombre completo"
+                  className="h-9 text-sm"
+                  autoComplete="off"
+                  onChange={(e) => {
+                    rhfNombreOnChange(e);
+                    if (!esSerenazgo) return;
+                    const val = e.target.value.trim();
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                    if (val.length < 2) {
+                      setShowSuggestions(false);
+                      setSerenoQuery('');
+                      setReporterSerenoId(null);
+                      return;
+                    }
+                    debounceRef.current = setTimeout(() => {
+                      setSerenoQuery(val);
+                      setShowSuggestions(true);
+                    }, 300);
+                  }}
+                  onBlur={(e) => {
+                    rhfNombreOnBlur(e);
+                    setTimeout(() => setShowSuggestions(false), 150);
+                  }}
+                />
+                {showSuggestions && esSerenazgo && (serenosData?.data ?? []).length > 0 && (
+                  <div
+                    ref={suggestionsRef}
+                    className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-52 overflow-y-auto"
+                  >
+                    {(serenosData?.data ?? []).map((s: Sereno) => {
+                      const nombre = `${s.nombres ?? ''} ${s.apellidoPaterno ?? ''} ${s.apellidoMaterno ?? ''}`.trim();
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex flex-col"
+                          onMouseDown={() => {
+                            setValue('nombreReportante', nombre);
+                            setReporterSerenoId(s.id);
+                            setShowSuggestions(false);
+                            setSerenoQuery('');
+                          }}
+                        >
+                          <span className="font-medium text-gray-800">{nombre}</span>
+                          {s.dni && <span className="text-xs text-gray-400">DNI: {s.dni}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </Field>
 
             <div className="col-span-1">
@@ -363,10 +492,18 @@ export default function NuevaIncidenciaPage() {
                 <MapPicker
                   lat={lat}
                   lng={lng}
-                  onSelect={(l, lo, address) => {
+                  activeJurisdiccionName={activeJurisdiccionName}
+                  onSelect={async (l, lo, address) => {
                     setValue('latitud', l);
                     setValue('longitud', lo);
                     if (address) setValue('direccion', address);
+                    const jurisdiccionId = await autoDetectarJurisdiccion(l, lo, jurisdicciones ?? []);
+                    if (jurisdiccionId) {
+                      setValue('jurisdiccionId', jurisdiccionId);
+                      setJurisdiccionAutoFilled(true);
+                    } else {
+                      setJurisdiccionAutoFilled(false);
+                    }
                   }}
                   onLoading={setGeocodingLoading}
                 />
@@ -390,8 +527,27 @@ export default function NuevaIncidenciaPage() {
               </Field>
             </div>
             <Field label="Fecha y Hora de Ocurrencia">
-              <Input type="datetime-local" className="h-9 text-sm" {...register('ocurridoEn')} />
+              <div className="relative">
+                <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                <Input
+                  type="datetime-local"
+                  className="h-9 text-sm pl-8 [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  {...register('ocurridoEn')}
+                />
+              </div>
+              <p className="text-xs text-gray-400">Si no se indica, se usará la hora de registro</p>
             </Field>
+          </div>
+        </div>
+
+        {/* Evidencias */}
+        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+          <SectionTitle title="Evidencias (opcional)" />
+          <div className="p-5">
+            <EvidenciasUploader
+              archivos={archivosEvidencia}
+              onChange={setArchivosEvidencia}
+            />
           </div>
         </div>
 
@@ -399,10 +555,23 @@ export default function NuevaIncidenciaPage() {
         <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
           <SectionTitle title="Clasificación Final" />
           <div className="p-5 grid grid-cols-2 gap-4">
-            <Field label="Jurisdicción">
+            <Field label={
+              <span className="flex items-center gap-1.5">
+                Jurisdicción
+                {jurisdiccionAutoFilled && (
+                  <span className="text-xs font-normal text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                    auto
+                  </span>
+                )}
+              </span>
+            }>
               <Controller name="jurisdiccionId" control={control} render={({ field }) => (
-                <Select onValueChange={(v) => field.onChange(Number(v))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <Select
+                  value={field.value ? String(field.value) : undefined}
+                  onValueChange={(v) => { field.onChange(Number(v)); setJurisdiccionAutoFilled(false); }}>
+                  <SelectTrigger className={`h-9 text-sm ${jurisdiccionAutoFilled ? 'border-blue-400 bg-blue-50' : ''}`}>
+                    <SelectValue placeholder="Seleccionar..." />
+                  </SelectTrigger>
                   <SelectContent>
                     {jurisdicciones?.map((j: CatalogoItem) => <SelectItem key={j.id} value={String(j.id)}>{j.descripcion || j.nombre}</SelectItem>)}
                   </SelectContent>

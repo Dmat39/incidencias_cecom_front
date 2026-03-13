@@ -106,6 +106,7 @@ export function useAssignSerenos(id: number) {
 export interface MapaFilters {
   fechaInicio?: string;
   fechaFin?: string;
+  turno?: 'mañana' | 'tarde' | 'noche';
 }
 
 export function useIncidenciasMapa(filters: MapaFilters = {}) {
@@ -122,6 +123,17 @@ export function useIncidenciasMapa(filters: MapaFilters = {}) {
   });
 }
 
+export function useEvidencias(id: number) {
+  return useQuery({
+    queryKey: ['incidencias', id, 'evidencias'],
+    queryFn: async () => {
+      const { data } = await api.get<ApiResponse<any[]>>(`/evidencias/incidencia/${id}`);
+      return data.data ?? [];
+    },
+    enabled: !!id,
+  });
+}
+
 export function useUploadEvidencia(id: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -131,6 +143,9 @@ export function useUploadEvidencia(id: number) {
       });
       return data.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.detail(id) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.detail(id) });
+      qc.invalidateQueries({ queryKey: ['incidencias', id, 'evidencias'] });
+    },
   });
 }

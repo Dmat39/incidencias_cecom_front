@@ -5,8 +5,9 @@ import dynamic from 'next/dynamic';
 import { useIncidenciasMapa } from '@/hooks/useIncidencias';
 import { useSocket } from '@/hooks/useSocket';
 import { useQueryClient } from '@tanstack/react-query';
-import { Layers, MapPin, LocateFixed, ChevronLeft, ChevronRight, CalendarDays, Search } from 'lucide-react';
+import { Layers, MapPin, LocateFixed, ChevronLeft, ChevronRight, CalendarDays, Search, Clock } from 'lucide-react';
 import type { Incidencia } from '@/types';
+import type { MapaFilters } from '@/hooks/useIncidencias';
 
 const MapView = dynamic(() => import('@/components/mapa/MapView'), { ssr: false });
 
@@ -62,10 +63,11 @@ export default function MapaPage() {
   // Filtros aplicados — solo cambian al pulsar "Aplicar" o los atajos rápidos
   const [appliedInicio, setAppliedInicio] = useState(todayStr());
   const [appliedFin,    setAppliedFin]    = useState(todayStr());
+  const [turno, setTurno] = useState<MapaFilters['turno']>(undefined);
 
   const pendingChanges = draftInicio !== appliedInicio || draftFin !== appliedFin;
 
-  const filters = { fechaInicio: appliedInicio, fechaFin: appliedFin };
+  const filters: MapaFilters = { fechaInicio: appliedInicio, fechaFin: appliedFin, turno };
   const { data: mapaData, isLoading } = useIncidenciasMapa(filters);
   const [panelOpen, setPanelOpen] = useState(true);
 
@@ -190,6 +192,34 @@ export default function MapaPage() {
           <p className="text-xs text-gray-400 mt-2">
             {isLoading ? 'Cargando...' : `${withCoords.length} incidencias en rango`}
           </p>
+        </div>
+
+        {/* ── Filtro de Turno ── */}
+        <div className="px-4 py-3 border-b border-gray-200 flex-shrink-0">
+          <p className="font-bold text-gray-700 flex items-center gap-1.5 text-sm mb-2.5">
+            <Clock className="h-4 w-4 text-gray-500" />
+            Turno
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {([
+              { key: undefined,  label: 'Todos',   sub: 'Sin filtro' },
+              { key: 'mañana',   label: 'Mañana',  sub: '6am – 2pm'  },
+              { key: 'tarde',    label: 'Tarde',   sub: '2pm – 10pm' },
+              { key: 'noche',    label: 'Noche',   sub: '10pm – 6am' },
+            ] as const).map(({ key, label, sub }) => (
+              <button
+                key={label}
+                onClick={() => setTurno(key)}
+                className={`flex flex-col items-center py-1.5 px-1 rounded border text-xs font-medium transition-colors
+                  ${turno === key
+                    ? 'bg-green-600 text-white border-green-600'
+                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+              >
+                <span>{label}</span>
+                <span className={`text-[10px] font-normal ${turno === key ? 'text-green-100' : 'text-gray-400'}`}>{sub}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Control de Capas ── */}

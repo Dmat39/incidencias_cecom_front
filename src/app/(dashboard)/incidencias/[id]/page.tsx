@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { useIncidencia, useUpdateAtencion, useUpdateIncidencia, useAssignSerenos, useUploadEvidencia } from '@/hooks/useIncidencias';
+import { useIncidencia, useUpdateAtencion, useUpdateIncidencia, useAssignSerenos, useUploadEvidencia, useEvidencias } from '@/hooks/useIncidencias';
 import { useSerenosActivos } from '@/hooks/useSerenos';
 import {
   useEstadoIncidencias, useEstadoProcesos, useGeneroAgresor,
@@ -54,6 +54,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
   const updateInc = useUpdateIncidencia(incId);
   const assignSerenos = useAssignSerenos(incId);
   const uploadEvidencia = useUploadEvidencia(incId);
+  const { data: evidencias = [] } = useEvidencias(incId);
 
   const [atencionForm, setAtencionForm] = useState<UpdateAtencionDto>({});
   const [serenoSearch, setSerenoSearch] = useState('');
@@ -64,10 +65,9 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
   function getEvidenciaUrl(rutaArchivo?: string | null, nombreArchivo?: string | null): string | null {
     if (rutaArchivo) {
-      // Subida directamente por cecom → ./uploads/filename.ext
-      const normalized = rutaArchivo.replace(/\\/g, '/');
-      const clean = normalized.startsWith('/') ? normalized.slice(1) : normalized;
-      return `${BASE_URL}/${clean}`;
+      // rutaArchivo es ruta absoluta del servidor → extraer solo el nombre del archivo almacenado
+      const storedFilename = rutaArchivo.replace(/\\/g, '/').split('/').pop();
+      return `${BASE_URL}/uploads/${storedFilename}`;
     }
     if (nombreArchivo) {
       // Copiado por srvi-backend → EXTERNAL_FILES_PATH/filename.ext
@@ -456,14 +456,15 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
               </div>
 
               {/* Galería */}
-              {(inc.evidencias || []).length === 0 ? (
+              {evidencias.length === 0 ? (
                 <p className="text-center py-8 text-gray-400 text-sm">No hay evidencias adjuntas</p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {(inc.evidencias || []).map((ev) => {
+                  {evidencias.map((ev) => {
                     const url = getEvidenciaUrl(ev.rutaArchivo, ev.nombreArchivo);
-                    const imagen = isImage(ev.nombreArchivo || '');
-                    const video  = isVideo(ev.nombreArchivo || '');
+                    const nombre = ev.nombreArchivo || ev.rutaArchivo?.replace(/\\/g, '/').split('/').pop() || '';
+                    const imagen = isImage(nombre);
+                    const video  = isVideo(nombre);
 
                     return (
                       <div key={ev.id} className="group relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex flex-col">
@@ -489,7 +490,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                           </div>
                         ) : (
                           <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
-                            {(ev.nombreArchivo || '').endsWith('.pdf')
+                            {nombre.endsWith('.pdf')
                               ? <FileText className="h-10 w-10 text-red-400" />
                               : <File className="h-10 w-10 text-gray-400" />}
                           </div>
@@ -497,8 +498,8 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
                         {/* Info + descarga */}
                         <div className="p-2 flex flex-col gap-0.5">
-                          <p className="text-xs text-gray-700 truncate font-medium" title={ev.nombreArchivo || ''}>
-                            {ev.nombreArchivo || 'archivo'}
+                          <p className="text-xs text-gray-700 truncate font-medium" title={nombre || ''}>
+                            {nombre || 'archivo'}
                           </p>
                           {ev.fechaHoraRegistro && (
                             <p className="text-xs text-gray-400">{formatDate(ev.fechaHoraRegistro, 'dd/MM/yy HH:mm')}</p>

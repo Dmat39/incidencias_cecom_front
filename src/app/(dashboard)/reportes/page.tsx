@@ -9,13 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileDown, FileBarChart } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import { useUnidades, useEstadoIncidencias } from '@/hooks/useCatalogos';
+import { useUnidades, useEstadoIncidencias, useTipoCasos, useTipoCasosByUnidad, useSubTipoCasos, useSubTipoCasosByTipo } from '@/hooks/useCatalogos';
 
 interface ReportFilter {
   fechaInicio?: string;
   fechaFin?: string;
   unidadId?: number;
   situacionId?: number;
+  tipoCasoId?: number;
+  subTipoCasoId?: number;
 }
 
 export default function ReportesPage() {
@@ -23,6 +25,13 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(false);
   const { data: unidades } = useUnidades();
   const { data: estados } = useEstadoIncidencias();
+  const { data: todosTipos }       = useTipoCasos();
+  const { data: tiposPorUnidad }   = useTipoCasosByUnidad(filters.unidadId);
+  const tiposCaso = filters.unidadId ? tiposPorUnidad : todosTipos;
+
+  const { data: todosSubtipos }    = useSubTipoCasos();
+  const { data: subtiposPorTipo }  = useSubTipoCasosByTipo(filters.tipoCasoId);
+  const subtipos = filters.tipoCasoId ? subtiposPorTipo : todosSubtipos;
 
   async function handleDownload() {
     setLoading(true);
@@ -48,7 +57,7 @@ export default function ReportesPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <Card className="border border-gray-200 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -57,7 +66,7 @@ export default function ReportesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1">
               <Label>Fecha inicio</Label>
               <Input
@@ -74,12 +83,42 @@ export default function ReportesPage() {
             </div>
             <div className="space-y-1">
               <Label>Unidad</Label>
-              <Select onValueChange={(v) => setFilters((f) => ({ ...f, unidadId: v === 'all' ? undefined : Number(v) }))}>
+              <Select onValueChange={(v) => setFilters((f) => ({ ...f, unidadId: v === 'all' ? undefined : Number(v), tipoCasoId: undefined, subTipoCasoId: undefined }))}>
                 <SelectTrigger><SelectValue placeholder="Todas las unidades" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
                   {unidades?.map((u) => (
                     <SelectItem key={u.id} value={String(u.id)}>{u.descripcion}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Tipo de caso</Label>
+              <Select
+                value={filters.tipoCasoId ? String(filters.tipoCasoId) : 'all'}
+                onValueChange={(v) => setFilters((f) => ({ ...f, tipoCasoId: v === 'all' ? undefined : Number(v), subTipoCasoId: undefined }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {tiposCaso?.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>{t.descripcion}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Subtipo de caso</Label>
+              <Select
+                value={filters.subTipoCasoId ? String(filters.subTipoCasoId) : 'all'}
+                onValueChange={(v) => setFilters((f) => ({ ...f, subTipoCasoId: v === 'all' ? undefined : Number(v) }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Todos los subtipos" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {subtipos?.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

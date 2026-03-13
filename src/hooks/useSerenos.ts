@@ -13,12 +13,14 @@ export interface SerenosParams {
   page?: number;
   limit?: number;
   habilitado?: boolean;
+  enabled?: boolean;
 }
 
 export function useSerenos(params: SerenosParams = {}) {
-  const { search, page = 1, limit = 20, habilitado } = params;
+  const { search, page = 1, limit = 20, habilitado, enabled = true } = params;
   return useQuery({
     queryKey: [...KEYS.list(), search, page, limit, habilitado],
+    enabled,
     queryFn: async () => {
       const qp: Record<string, unknown> = { page, limit };
       if (search) qp.search = search;
