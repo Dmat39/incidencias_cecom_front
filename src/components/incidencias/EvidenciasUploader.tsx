@@ -81,7 +81,9 @@ export default function EvidenciasUploader({ archivos, onChange }: Props) {
       }
 
       nuevos.push({
-        id:      crypto.randomUUID(),
+        id:      typeof crypto.randomUUID === 'function'
+                   ? crypto.randomUUID()
+                   : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
         preview: '',
         nombre:  file.name,
