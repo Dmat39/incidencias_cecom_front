@@ -172,7 +172,9 @@ export default function NuevaIncidenciaPage() {
       try {
         const fd = new (window.FormData)();
         fd.append('file', archivo.file);
-        await api.post(`/incidencias/${inc.id}/evidencias`, fd);
+        await api.post(`/incidencias/${inc.id}/evidencias`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
       } catch {
         evidenciasError = true;
       }
