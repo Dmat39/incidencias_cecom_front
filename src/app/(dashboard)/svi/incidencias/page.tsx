@@ -75,7 +75,7 @@ function obtenerUrgencia(descripcion: string): string | null {
 
 function formatData(data: any[], subsectores: Subsector[], subtipos: Subtipo[]) {
   return data.map((inc) => {
-    const fecha = dayjs.utc(inc.createdAt);
+    const fecha = dayjs.utc(inc.createdAt).tz('America/Lima');
     const subtipo = subtipos.find((s) => s.id === inc.sub_tipo_caso_id);
     return {
       ...inc,
