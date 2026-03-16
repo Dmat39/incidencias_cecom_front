@@ -31,6 +31,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.577.0",
     "next": "14.2.35",
+    "pnpm": "^10.32.1",
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.71.2",
