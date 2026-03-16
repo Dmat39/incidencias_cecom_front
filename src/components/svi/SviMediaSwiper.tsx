@@ -123,7 +123,7 @@ export default function SviMediaSwiper({ images }: Props) {
               )}
             </div>
 
-            {/* Navegación */}
+            {/* Navegacisón */}
             {total > 1 && (
               <>
                 <button

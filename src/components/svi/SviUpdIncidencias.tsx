@@ -9,6 +9,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, CheckCircle2, MapPin } from 'lucide-react';
 import apiSvi from '@/lib/apiSvi';
 import toast from 'react-hot-toast';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // ─── tipos simples ────────────────────────────────────────────────────────────
 interface Option { id: number; nombre?: string; descripcion?: string; label?: string; }
@@ -258,12 +264,12 @@ export default function SviUpdIncidencias({ open, incidencia, onClose, onSuccess
     setSeveridadProId(String(incidencia.severidad_proceso_id ?? ''));
     if (incidencia.latitud)  setLat(Number(incidencia.latitud));
     if (incidencia.longitud) setLng(Number(incidencia.longitud));
-    // fecha y hora desde doneAt o createdAt
+    // fecha y hora desde doneAt o createdAt, convertidas a hora Lima (UTC-5)
     const raw = incidencia.doneAt ?? incidencia.createdAt;
     if (raw) {
-      const d = new Date(raw);
-      setFechaOcurrencia(d.toISOString().split('T')[0]);
-      setHoraOcurrencia(d.toISOString().split('T')[1]?.slice(0, 5) ?? '');
+      const d = dayjs.utc(raw).tz('America/Lima');
+      setFechaOcurrencia(d.format('YYYY-MM-DD'));
+      setHoraOcurrencia(d.format('HH:mm'));
     }
     loadCatalogos(incidencia);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -342,8 +348,8 @@ export default function SviUpdIncidencias({ open, incidencia, onClose, onSuccess
         medio_id:             medioId           ? Number(medioId)           : undefined,
         situacion_id:         situacionId       ? Number(situacionId)       : undefined,
         operador_id:          operadorId        ? Number(operadorId)        : undefined,
-        latitud:  lat  ? String(lat)  : undefined,
-        longitud: lng  ? String(lng)  : undefined,
+        latitud:  incidencia.latitud  != null ? String(lat)  : undefined,
+        longitud: incidencia.longitud != null ? String(lng)  : undefined,
       };
 
       const tRep = Number(tipoReportanteId);
@@ -365,8 +371,13 @@ export default function SviUpdIncidencias({ open, incidencia, onClose, onSuccess
       await apiSvi.patch(`/incidencias/${incidencia.id}`, payload);
       toast.success('Incidencia procesada correctamente');
       onSuccess(incidencia.id);
-    } catch {
-      toast.error('Error al procesar la incidencia');
+    } catch (err: any) {
+      const serverMsg =
+        err?.response?.data?.message ??
+        err?.response?.data?.error ??
+        (typeof err?.response?.data === 'string' ? err.response.data : null);
+      console.error('Error PATCH /incidencias:', err?.response?.status, err?.response?.data);
+      toast.error(serverMsg ? `Error: ${serverMsg}` : 'Error al procesar la incidencia');
     } finally {
       setSubmitting(false);
     }
