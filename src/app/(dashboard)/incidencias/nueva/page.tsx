@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ComboboxSearch } from '@/components/ui/combobox-search';
 import { z } from 'zod';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
@@ -207,7 +208,8 @@ export default function NuevaIncidenciaPage() {
         {/* Clasificación */}
         <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
           <SectionTitle title="Clasificación" />
-          <div className="p-5 grid grid-cols-2 gap-4">
+          <div className="p-5 grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div style={{ minWidth: 0, width: '100%' }}>
             <Field label="Unidad">
               <Controller name="unidadId" control={control} render={({ field }) => (
                 <Select
@@ -226,49 +228,50 @@ export default function NuevaIncidenciaPage() {
                 </Select>
               )} />
             </Field>
+            </div>
 
+            {/* ✅ Sin div wrapper extra, el Field ya es hijo directo del grid */}
+            <div style={{ minWidth: 0, width: '100%' }}>
             <Field label="Tipo de Caso">
+              <div className="min-w-0 w-full">
               <Controller name="tipoCasoId" control={control} render={({ field }) => (
-                <Select
-                  key={`tipo-${selectedUnidad}`}
-                  value={field.value ? String(field.value) : undefined}
-                  disabled={!selectedUnidad || loadingTipos}
-                  onValueChange={(v) => {
-                    const n = Number(v); field.onChange(n);
-                    setSelectedTipoCaso(n);
+                <ComboboxSearch
+                  options={(tiposCasoFiltrados ?? []).map((t: CatalogoItem) => ({
+                    value: t.id,
+                    label: t.codigo ? `${t.codigo} - ${t.descripcion}` : t.descripcion,
+                  }))}
+                  value={field.value}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    setSelectedTipoCaso(v);
                     setValue('subTipoCasoId', undefined);
-                  }}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder={
-                      !selectedUnidad ? 'Primero elige unidad'
-                      : loadingTipos ? 'Cargando...'
-                      : 'Seleccionar...'
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tiposCasoFiltrados?.map((t: CatalogoItem) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.codigo ? `${t.codigo} - ${t.descripcion}` : t.descripcion}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  }}
+                  placeholder={
+                    !selectedUnidad ? 'Primero elige unidad'
+                    : loadingTipos ? 'Cargando...'
+                    : 'Buscar tipo de caso...'
+                  }
+                  searchPlaceholder="Escribe para buscar..."
+                  disabled={!selectedUnidad || loadingTipos}
+                />
               )} />
+              </div>
             </Field>
+            </div>
 
+            <div style={{ minWidth: 0, width: '100%' }}>
             <Field label="Subtipo">
+              <div className="min-w-0 overflow-hidden rounded-md">
               <Controller name="subTipoCasoId" control={control} render={({ field }) => (
-                <Select
-                  key={`subtipo-${selectedTipoCaso}`}
-                  value={field.value ? String(field.value) : undefined}
-                  disabled={!selectedTipoCaso || loadingSubtipos}
-                  onValueChange={(v) => {
-                    const n = Number(v);
-                    field.onChange(n);
-                    // Auto-completar severidad según urgencia del subtipo
-                    // urgencia en DB: ALTO/MEDIO/BAJO/CRITICO — severidades: ALTA/MEDIA/BAJA/CRÍTICA
-                    // Usamos coincidencia por prefijo (ALT, MED, BAJ, CRIT)
-                    const subtipo = subTiposFiltrados?.find((s: CatalogoItem) => s.id === n);
+                <ComboboxSearch
+                  options={(subTiposFiltrados ?? []).map((s: CatalogoItem) => ({
+                    value: s.id,
+                    label: s.codigo ? `${s.codigo} - ${s.descripcion}` : s.descripcion,
+                  }))}
+                  value={field.value}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    const subtipo = subTiposFiltrados?.find((s: CatalogoItem) => s.id === v);
                     if (subtipo?.urgencia && severidades?.length) {
                       const urg = subtipo.urgencia.toUpperCase();
                       const match = severidades.find((s: CatalogoItem) => {
@@ -279,34 +282,26 @@ export default function NuevaIncidenciaPage() {
                         if (urg.includes('BAJ'))  return desc.includes('BAJ');
                         return false;
                       });
-                      if (match) {
-                        setValue('severidadId', match.id);
-                        setSeveridadAutoFilled(true);
-                      } else {
-                        setSeveridadAutoFilled(false);
-                      }
+                      if (match) { setValue('severidadId', match.id); setSeveridadAutoFilled(true); }
+                      else setSeveridadAutoFilled(false);
                     } else {
                       setSeveridadAutoFilled(false);
                     }
-                  }}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder={
-                      !selectedTipoCaso ? 'Primero elige tipo'
-                      : loadingSubtipos ? 'Cargando...'
-                      : 'Seleccionar...'
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subTiposFiltrados?.map((s: CatalogoItem) => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {s.codigo ? `${s.codigo} - ${s.descripcion}${s.urgencia ? ` (${s.urgencia})` : ''}` : s.descripcion}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  }}
+                  placeholder={
+                    !selectedTipoCaso ? 'Primero elige tipo'
+                    : loadingSubtipos ? 'Cargando...'
+                    : 'Buscar subtipo...'
+                  }
+                  searchPlaceholder="Escribe para buscar..."
+                  disabled={!selectedTipoCaso || loadingSubtipos}
+                />
               )} />
+              </div>
             </Field>
+            </div>
 
+            <div style={{ minWidth: 0, width: '100%' }}>
             <Field label={
               <span className="flex items-center gap-1.5">
                 Severidad
@@ -330,6 +325,8 @@ export default function NuevaIncidenciaPage() {
                 </Select>
               )} />
             </Field>
+            </div>
+
           </div>
         </div>
 
@@ -505,7 +502,7 @@ export default function NuevaIncidenciaPage() {
             </div>
 
             <div>
-              <div className="rounded border border-gray-200 overflow-hidden" style={{ height: 280 }}>
+              <div className="rounded border border-gray-200 overflow-hidden" style={{ height: 480 }}>
                 <MapPicker
                   lat={lat}
                   lng={lng}

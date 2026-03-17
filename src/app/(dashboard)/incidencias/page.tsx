@@ -153,39 +153,40 @@ export default function IncidenciasPage() {
 
       {/* ── Tabla ── */}
       <div className="border rounded-lg shadow-sm flex flex-col">
-        <div className="overflow-x-auto rounded-t-lg">
-          <div className="overflow-y-auto min-w-[900px]" style={{ height: 'calc(100vh - 290px)' }}>
-          <Table>
+        <div className="overflow-y-auto rounded-t-lg" style={{ height: 'calc(100vh - 290px)' }}>
+          <Table className="w-full table-fixed">
+
+            <colgroup>
+              <col style={{ width: '110px' }} />  {/* Código */}
+              <col style={{ width: '100px' }} />  {/* Fecha/Hora */}
+              <col style={{ width: '100px' }} />   {/* Unidad */}
+              <col style={{ width: '470px' }}/>   {/* Tipo de Caso */}
+              <col style={{ width: '350px' }} />  {/* Dirección */}
+              <col style={{ width: '85px' }} />  {/* Estado */}
+            </colgroup>
+
             <TableHeader className="sticky top-0 z-10">
               <TableRow className="bg-green-600 hover:bg-green-600">
-                {[
-                  { label: 'Código',       cls: 'min-w-[130px]' },
-                  { label: 'Fecha/Hora',   cls: 'min-w-[120px]' },
-                  { label: 'Unidad',       cls: 'min-w-[100px]' },
-                  { label: 'Tipo de Caso', cls: 'min-w-[160px]' },
-                  { label: 'Subtipo',      cls: 'min-w-[220px]' },
-                  { label: 'Dirección',    cls: 'min-w-[180px]' },
-                  { label: 'Estado',       cls: 'min-w-[110px]' },
-                  { label: 'Acciones',     cls: 'min-w-[80px]'  },
-                ].map(({ label, cls }) => (
-                  <TableHead key={label} className={`text-white font-semibold text-sm whitespace-nowrap bg-green-600 ${cls}`}>
+                {['Código', 'Fecha/Hora', 'Unidad', 'Tipo de Caso', 'Dirección', 'Estado'].map((label) => (
+                  <TableHead key={label} className="text-white font-semibold text-sm whitespace-nowrap bg-green-600">
                     {label}
                   </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
+
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    {[1,2,3,4,5,6,7,8].map((j) => (
+                    {[1,2,3,4,5,6].map((j) => (
                       <TableCell key={j}><div className="h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-gray-400 text-sm">
+                  <TableCell colSpan={6} className="text-center py-12 text-gray-400 text-sm">
                     {searchText ? 'No hay resultados para la búsqueda.' : 'No hay datos disponibles.'}
                   </TableCell>
                 </TableRow>
@@ -207,53 +208,41 @@ export default function IncidenciasPage() {
                         </span>
                       </div>
                     </TableCell>
+
                     <TableCell className="text-sm text-gray-600 whitespace-nowrap py-2.5">
                       {formatDate(inc.registradoEn, 'dd/MM/yy HH:mm')}
                     </TableCell>
+
                     <TableCell className="text-sm text-gray-600 whitespace-nowrap py-2.5">
                       {inc.unidad?.descripcion || '-'}
                     </TableCell>
-                    <TableCell className="text-sm text-gray-700 py-2.5">
-                      <span className="line-clamp-2 leading-snug">
+
+                    <TableCell className="text-sm text-gray-700 py-2.5 max-w-0">
+                      <p className="truncate" title={
+                        inc.tipoCaso?.codigo
+                          ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}`
+                          : inc.tipoCaso?.descripcion || '-'
+                      }>
                         {inc.tipoCaso
                           ? (inc.tipoCaso.codigo ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}` : inc.tipoCaso.descripcion) || '-'
                           : '-'}
-                      </span>
+                      </p>
                     </TableCell>
-                    <TableCell className="text-sm text-gray-600 py-2.5" title={
-                      inc.subTipoCaso?.codigo
-                        ? `${inc.subTipoCaso.codigo} - ${inc.subTipoCaso.descripcion}`
-                        : inc.subTipoCaso?.descripcion || ''
-                    }>
-                      <span className="line-clamp-2 leading-snug">
-                        {inc.subTipoCaso
-                          ? (inc.subTipoCaso.codigo ? `${inc.subTipoCaso.codigo} - ${inc.subTipoCaso.descripcion}` : inc.subTipoCaso.descripcion) || '-'
-                          : '-'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600 py-2.5" title={inc.direccion || ''}>
-                      <span className="line-clamp-2 leading-snug">
+
+                    <TableCell className="text-sm text-gray-600 py-2.5 max-w-0">
+                      <p className="truncate" title={inc.direccion || ''}>
                         {inc.direccion || '-'}
-                      </span>
+                      </p>
                     </TableCell>
+
                     <TableCell className="py-2.5 whitespace-nowrap">
                       <EstadoBadge estado={inc.situacion?.descripcion} />
-                    </TableCell>
-                    <TableCell className="py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        title="Ver detalle"
-                        onClick={() => router.push(`/incidencias/${inc.id}`)}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded text-blue-600 hover:bg-blue-50 transition-colors"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
                     </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-          </div>
         </div>
 
         {/* Paginación */}
@@ -290,8 +279,4 @@ export default function IncidenciasPage() {
             </div>
           </div>
         )}
-      </div>
-
-    </div>
-  );
-}
+      </div></div>)}
