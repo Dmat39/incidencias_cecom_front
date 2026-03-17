@@ -261,7 +261,7 @@ export default function NuevaIncidenciaPage() {
 
             <div style={{ minWidth: 0, width: '100%' }}>
             <Field label="Subtipo">
-              <div className="min-w-0 overflow-hidden rounded-md">
+              <div className="min-w-0 w-full">
               <Controller name="subTipoCasoId" control={control} render={({ field }) => (
                 <ComboboxSearch
                   options={(subTiposFiltrados ?? []).map((s: CatalogoItem) => ({

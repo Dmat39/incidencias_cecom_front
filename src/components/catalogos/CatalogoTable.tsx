@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,9 +21,16 @@ interface Props {
 }
 
 export default function CatalogoTable({ items, isLoading, onCreate, onUpdate, onDelete }: Props) {
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<CatalogoItem | null>(null);
+  const [open, setOpen]           = useState(false);
+  const [editing, setEditing]     = useState<CatalogoItem | null>(null);
   const [descripcion, setDescripcion] = useState('');
+  const [search, setSearch]       = useState('');
+
+  const filtered = search.trim()
+    ? items.filter((item) =>
+        (item.descripcion || item.nombre || '').toLowerCase().includes(search.toLowerCase())
+      )
+    : items;
 
   function openCreate() {
     setEditing(null);
@@ -64,55 +71,101 @@ export default function CatalogoTable({ items, isLoading, onCreate, onUpdate, on
   }
 
   return (
-    <div>
-      <div className="flex justify-end mb-3">
+    <div className="space-y-3">
+
+      {/* Barra superior */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Buscar por descripción..."
+            className="pl-9 h-9 text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <Button onClick={openCreate} size="sm" className="bg-green-600 hover:bg-green-700">
           <Plus className="h-4 w-4 mr-1" /> Nuevo
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-green-600 hover:bg-green-600">
-              <TableHead className="text-white font-semibold">ID</TableHead>
-              <TableHead className="text-white font-semibold">Descripción</TableHead>
-              <TableHead className="text-white font-semibold">Estado</TableHead>
-              <TableHead className="text-white font-semibold text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8 text-gray-500">Cargando...</TableCell></TableRow>
-            ) : items.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8 text-gray-500">Sin registros</TableCell></TableRow>
-            ) : (
-              items.map((item) => (
-                <TableRow key={item.id} className="hover:bg-gray-50">
-                  <TableCell className="text-gray-500 text-sm">{item.id}</TableCell>
-                  <TableCell className="font-medium text-gray-800">{item.descripcion || item.nombre || '-'}</TableCell>
-                  <TableCell>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.habilitado !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {item.habilitado !== false ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(item)} className="h-8 w-8 text-blue-600 hover:bg-blue-50">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="h-8 w-8 text-red-600 hover:bg-red-50">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+      {/* Tabla */}
+      <div className="border rounded-lg shadow-sm flex flex-col">
+        <div className="overflow-x-auto rounded-t-lg">
+          <div className="overflow-y-auto" style={{ height: 'calc(100vh - 320px)' }}>
+            <Table>
+              <TableHeader className="sticky top-0 z-10">
+                <TableRow className="bg-green-600 hover:bg-green-600">
+                  {[
+                    { label: 'ID',          cls: 'min-w-[60px]'  },
+                    { label: 'Descripción', cls: 'min-w-[260px]' },
+                    { label: 'Estado',      cls: 'min-w-[90px]'  },
+                    { label: 'Acciones',    cls: 'min-w-[90px]'  },
+                  ].map(({ label, cls }) => (
+                    <TableHead key={label} className={`text-white font-semibold text-sm whitespace-nowrap bg-green-600 ${cls}`}>
+                      {label}
+                    </TableHead>
+                  ))}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      {[1, 2, 3, 4].map((j) => (
+                        <TableCell key={j}><div className="h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-12 text-gray-400 text-sm">
+                      {search ? 'No hay resultados para la búsqueda.' : 'Sin registros.'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((item, idx) => (
+                    <TableRow
+                      key={item.id}
+                      className={`transition-colors hover:bg-green-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}
+                    >
+                      <TableCell className="py-2.5 text-sm text-gray-500">{item.id}</TableCell>
+                      <TableCell className="py-2.5 text-sm text-gray-800 font-medium">
+                        {item.descripcion || item.nombre || '-'}
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.habilitado !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {item.habilitado !== false ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="flex items-center gap-1">
+                          <button
+                            title="Editar"
+                            onClick={() => openEdit(item)}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            title="Eliminar"
+                            onClick={() => handleDelete(item.id)}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
 
+      {/* Modal */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
