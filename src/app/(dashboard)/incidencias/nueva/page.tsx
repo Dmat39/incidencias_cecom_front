@@ -238,7 +238,7 @@ export default function NuevaIncidenciaPage() {
                 <ComboboxSearch
                   options={(tiposCasoFiltrados ?? []).map((t: CatalogoItem) => ({
                     value: t.id,
-                    label: t.codigo ? `${t.codigo} - ${t.descripcion}` : t.descripcion,
+                    label: t.codigo ? `${t.codigo} - ${t.descripcion ?? ''}` : (t.descripcion ?? ''),
                   }))}
                   value={field.value}
                   onChange={(v) => {
@@ -266,7 +266,7 @@ export default function NuevaIncidenciaPage() {
                 <ComboboxSearch
                   options={(subTiposFiltrados ?? []).map((s: CatalogoItem) => ({
                     value: s.id,
-                    label: s.codigo ? `${s.codigo} - ${s.descripcion}` : s.descripcion,
+                    label: s.codigo ? `${s.codigo} - ${s.descripcion ?? ''}` : (s.descripcion ?? ''),
                   }))}
                   value={field.value}
                   onChange={(v) => {
