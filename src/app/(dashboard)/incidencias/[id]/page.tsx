@@ -8,6 +8,8 @@ import { useSerenosActivos } from '@/hooks/useSerenos';
 import {
   useEstadoIncidencias, useEstadoProcesos, useGeneroAgresor,
   useGeneroVictima, useSeveridadProcesos, useSeveridades, useMedios, useOperadores,
+  useUnidades, useTipoCasosByUnidad, useSubTipoCasosByTipo, useJurisdicciones,
+  useTipoReportantes, useOperadoresByMedio,
 } from '@/hooks/useCatalogos';
 import EstadoBadge from '@/components/incidencias/EstadoBadge';
 import { Button } from '@/components/ui/button';
@@ -18,12 +20,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Save, Upload, UserCheck, X, FileText, Film, File, ZoomIn } from 'lucide-react';
+import { ArrowLeft, Save, Upload, UserCheck, X, FileText, Film, File, ZoomIn, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDate } from '@/lib/date';
-import type { UpdateAtencionDto } from '@/types';
+import type { UpdateAtencionDto, CreateIncidenciaDto } from '@/types';
 
 const MapView = dynamic(() => import('@/components/mapa/MapView'), { ssr: false });
+const MapPicker = dynamic(() => import('@/components/incidencias/MapPicker'), { ssr: false });
 
 function DataRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -50,6 +53,11 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
   const { data: operadores,        isLoading: loadingOperadores }        = useOperadores();
   const { data: serenos } = useSerenosActivos();
 
+  // Catálogos para el tab General (edición)
+  const { data: unidades } = useUnidades();
+  const { data: jurisdicciones } = useJurisdicciones();
+  const { data: tipoReportantes } = useTipoReportantes();
+
   const updateAtencion = useUpdateAtencion(incId);
   const updateInc = useUpdateIncidencia(incId);
   const assignSerenos = useAssignSerenos(incId);
@@ -60,6 +68,83 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
   const [serenoSearch, setSerenoSearch] = useState('');
   const [fileInput, setFileInput] = useState<File | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+
+  // Estado para edición del tab General
+  const [editingGeneral, setEditingGeneral] = useState(false);
+  const [generalForm, setGeneralForm] = useState<Partial<CreateIncidenciaDto>>({});
+  const [mapLoading, setMapLoading] = useState(false);
+
+  // Catálogos en cascada para el formulario General
+  const editUnidadId = generalForm.unidadId ?? inc?.unidadId;
+  const editTipoCasoId = generalForm.tipoCasoId ?? inc?.tipoCasoId;
+  const editMedioId = generalForm.medioId ?? inc?.medioId;
+  const { data: tipoCasosFiltrados } = useTipoCasosByUnidad(editingGeneral ? editUnidadId : undefined);
+  const { data: subTipoCasosFiltrados } = useSubTipoCasosByTipo(editingGeneral ? editTipoCasoId : undefined);
+  const { data: operadoresFiltrados } = useOperadoresByMedio(editingGeneral ? editMedioId : undefined);
+
+  function startEditGeneral() {
+    setGeneralForm({
+      unidadId: inc?.unidadId,
+      tipoCasoId: inc?.tipoCasoId,
+      subTipoCasoId: inc?.subTipoCasoId,
+      severidadId: inc?.severidadId,
+      jurisdiccionId: inc?.jurisdiccionId,
+      medioId: inc?.medioId,
+      operadorId: inc?.operadorId,
+      tipoReportanteId: inc?.tipoReportanteId,
+      nombreReportante: inc?.nombreReportante,
+      telefonoReportante: inc?.telefonoReportante,
+      direccion: inc?.direccion,
+      latitud: inc?.latitud ? Number(inc.latitud) : undefined,
+      longitud: inc?.longitud ? Number(inc.longitud) : undefined,
+      descripcion: inc?.descripcion,
+    });
+    setEditingGeneral(true);
+  }
+
+  async function handleGeneralSubmit() {
+    // Solo enviar los campos que realmente cambiaron respecto al valor original
+    const originalValues: Partial<CreateIncidenciaDto> = {
+      unidadId: inc?.unidadId,
+      tipoCasoId: inc?.tipoCasoId,
+      subTipoCasoId: inc?.subTipoCasoId,
+      severidadId: inc?.severidadId,
+      jurisdiccionId: inc?.jurisdiccionId,
+      medioId: inc?.medioId,
+      operadorId: inc?.operadorId,
+      tipoReportanteId: inc?.tipoReportanteId,
+      nombreReportante: inc?.nombreReportante ?? '',
+      telefonoReportante: inc?.telefonoReportante ?? '',
+      direccion: inc?.direccion ?? '',
+      latitud: inc?.latitud ? Number(inc.latitud) : undefined,
+      longitud: inc?.longitud ? Number(inc.longitud) : undefined,
+      descripcion: inc?.descripcion ?? '',
+    };
+
+    const diff = (Object.keys(generalForm) as (keyof CreateIncidenciaDto)[]).reduce(
+      (acc, key) => {
+        const newVal = generalForm[key];
+        const oldVal = originalValues[key];
+        if (newVal !== oldVal) acc[key] = newVal as never;
+        return acc;
+      },
+      {} as Partial<CreateIncidenciaDto>
+    );
+
+    if (Object.keys(diff).length === 0) {
+      toast('Sin cambios para guardar', { icon: 'ℹ️' });
+      setEditingGeneral(false);
+      return;
+    }
+
+    try {
+      await updateInc.mutateAsync(diff);
+      toast.success('Incidencia actualizada');
+      setEditingGeneral(false);
+    } catch {
+      toast.error('Error al guardar');
+    }
+  }
 
   const BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3000';
 
@@ -177,38 +262,254 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
         {/* TAB: General */}
         <TabsContent value="general">
           <Card className="border border-gray-200">
-            <CardContent className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-              <div className="space-y-2">
-                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Clasificación</p>
-                <DataRow label="Unidad" value={inc.unidad?.descripcion} />
-                <DataRow label="Tipo de caso" value={inc.tipoCaso?.codigo ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}` : inc.tipoCaso?.descripcion} />
-                <DataRow label="Subtipo" value={inc.subTipoCaso?.codigo ? `${inc.subTipoCaso.codigo} - ${inc.subTipoCaso.descripcion}${inc.subTipoCaso.urgencia ? ` (${inc.subTipoCaso.urgencia})` : ''}` : inc.subTipoCaso?.descripcion} />
-                <DataRow label="Severidad" value={inc.severidad?.descripcion} />
-                <DataRow label="Jurisdicción" value={inc.jurisdiccion?.nombre || inc.jurisdiccion?.codigo} />
+            <CardContent className="p-5 space-y-4">
+              {/* Encabezado con botón editar/cancelar */}
+              <div className="flex justify-end gap-2">
+                {editingGeneral ? (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => setEditingGeneral(false)}>
+                      Cancelar
+                    </Button>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={handleGeneralSubmit} disabled={updateInc.isPending}>
+                      <Save className="h-4 w-4 mr-1" /> Guardar
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={startEditGeneral}>
+                    <Pencil className="h-4 w-4 mr-1" /> Editar
+                  </Button>
+                )}
               </div>
-              <div className="space-y-2">
-                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Canal</p>
-                <DataRow label="Medio" value={inc.medio?.descripcion} />
-                <DataRow label="Operador" value={inc.operador?.descripcion} />
-              </div>
-              <div className="space-y-2 mt-4">
-                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Reportante</p>
-                <DataRow label="Tipo" value={inc.tipoReportante?.descripcion} />
-                <DataRow label="Nombre" value={inc.nombreReportante} />
-                <DataRow label="Teléfono" value={inc.telefonoReportante} />
-              </div>
-              <div className="space-y-2 mt-4">
-                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Ubicación</p>
-                <DataRow label="Dirección" value={inc.direccion} />
-                <DataRow label="Latitud" value={lat ? String(lat) : undefined} />
-                <DataRow label="Longitud" value={lng ? String(lng) : undefined} />
-              </div>
-              <div className="md:col-span-2 mt-2 space-y-2">
-                <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Descripción</p>
-                <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3 border border-gray-100">
-                  {inc.descripcion || <span className="text-gray-400 italic">Sin descripción</span>}
-                </p>
-              </div>
+
+              {editingGeneral ? (
+                /* MODO EDICIÓN */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-3">Clasificación</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Unidad</Label>
+                    <Select
+                      value={generalForm.unidadId ? String(generalForm.unidadId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, unidadId: Number(v), tipoCasoId: undefined, subTipoCasoId: undefined }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                      <SelectContent>
+                        {unidades?.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.descripcion || u.nombre}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tipo de caso</Label>
+                    <Select
+                      value={generalForm.tipoCasoId ? String(generalForm.tipoCasoId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, tipoCasoId: Number(v), subTipoCasoId: undefined }))}
+                      disabled={!editUnidadId}
+                    >
+                      <SelectTrigger><SelectValue placeholder={!editUnidadId ? 'Seleccione unidad primero' : 'Seleccionar'} /></SelectTrigger>
+                      <SelectContent>
+                        {tipoCasosFiltrados?.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.codigo ? `${t.codigo} - ${t.descripcion}` : t.descripcion}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Subtipo</Label>
+                    <Select
+                      value={generalForm.subTipoCasoId ? String(generalForm.subTipoCasoId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, subTipoCasoId: Number(v) }))}
+                      disabled={!editTipoCasoId}
+                    >
+                      <SelectTrigger><SelectValue placeholder={!editTipoCasoId ? 'Seleccione tipo primero' : 'Seleccionar'} /></SelectTrigger>
+                      <SelectContent>
+                        {subTipoCasosFiltrados?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.codigo ? `${s.codigo} - ${s.descripcion}` : s.descripcion}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Severidad</Label>
+                    <Select
+                      value={generalForm.severidadId ? String(generalForm.severidadId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, severidadId: Number(v) }))}
+                      disabled={loadingSeveridades}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                      <SelectContent>
+                        {severidades?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Jurisdicción</Label>
+                    <Select
+                      value={generalForm.jurisdiccionId ? String(generalForm.jurisdiccionId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, jurisdiccionId: Number(v) }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                      <SelectContent>
+                        {jurisdicciones?.map((j) => <SelectItem key={j.id} value={String(j.id)}>{j.nombre || j.codigo}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="md:col-span-2 border-t pt-3">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-3">Canal</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Medio</Label>
+                    <Select
+                      value={generalForm.medioId ? String(generalForm.medioId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, medioId: Number(v), operadorId: undefined }))}
+                      disabled={loadingMedios}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                      <SelectContent>
+                        {medios?.map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.descripcion}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Operador</Label>
+                    <Select
+                      value={generalForm.operadorId ? String(generalForm.operadorId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, operadorId: Number(v) }))}
+                      disabled={!editMedioId}
+                    >
+                      <SelectTrigger><SelectValue placeholder={!editMedioId ? 'Seleccione medio primero' : 'Seleccionar'} /></SelectTrigger>
+                      <SelectContent>
+                        {operadoresFiltrados?.map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.descripcion}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="md:col-span-2 border-t pt-3">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-3">Reportante</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tipo de reportante</Label>
+                    <Select
+                      value={generalForm.tipoReportanteId ? String(generalForm.tipoReportanteId) : undefined}
+                      onValueChange={(v) => setGeneralForm((f) => ({ ...f, tipoReportanteId: Number(v) }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                      <SelectContent>
+                        {tipoReportantes?.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.descripcion}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Nombre del reportante</Label>
+                    <Input
+                      value={generalForm.nombreReportante ?? ''}
+                      onChange={(e) => setGeneralForm((f) => ({ ...f, nombreReportante: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Teléfono del reportante</Label>
+                    <Input
+                      value={generalForm.telefonoReportante ?? ''}
+                      onChange={(e) => setGeneralForm((f) => ({ ...f, telefonoReportante: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 border-t pt-3">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-3">Ubicación</p>
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <Label>Dirección</Label>
+                    <Input
+                      value={generalForm.direccion ?? ''}
+                      onChange={(e) => setGeneralForm((f) => ({ ...f, direccion: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Latitud</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={generalForm.latitud ?? ''}
+                      onChange={(e) => setGeneralForm((f) => ({ ...f, latitud: e.target.value ? Number(e.target.value) : undefined }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Longitud</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={generalForm.longitud ?? ''}
+                      onChange={(e) => setGeneralForm((f) => ({ ...f, longitud: e.target.value ? Number(e.target.value) : undefined }))}
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-1">
+                    <Label className="flex items-center gap-2">
+                      Seleccionar en el mapa
+                      {mapLoading && <span className="text-xs text-gray-400 font-normal">Obteniendo dirección...</span>}
+                    </Label>
+                    <div className="h-64 rounded-lg overflow-hidden border border-gray-200">
+                      <MapPicker
+                        lat={generalForm.latitud ?? (inc?.latitud ? Number(inc.latitud) : undefined)}
+                        lng={generalForm.longitud ?? (inc?.longitud ? Number(inc.longitud) : undefined)}
+                        onSelect={(lat, lng, address) => {
+                          setGeneralForm((f) => ({
+                            ...f,
+                            latitud: lat,
+                            longitud: lng,
+                            ...(address ? { direccion: address } : {}),
+                          }));
+                        }}
+                        onLoading={setMapLoading}
+                        activeJurisdiccionName={inc?.jurisdiccion?.nombre}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">Haz clic en el mapa para actualizar la ubicación y dirección automáticamente.</p>
+                  </div>
+
+                  <div className="md:col-span-2 border-t pt-3">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-3">Descripción</p>
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <Textarea
+                      rows={3}
+                      value={generalForm.descripcion ?? ''}
+                      onChange={(e) => setGeneralForm((f) => ({ ...f, descripcion: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* MODO LECTURA */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+                  <div className="space-y-2">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Clasificación</p>
+                    <DataRow label="Unidad" value={inc.unidad?.descripcion} />
+                    <DataRow label="Tipo de caso" value={inc.tipoCaso?.codigo ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}` : inc.tipoCaso?.descripcion} />
+                    <DataRow label="Subtipo" value={inc.subTipoCaso?.codigo ? `${inc.subTipoCaso.codigo} - ${inc.subTipoCaso.descripcion}${inc.subTipoCaso.urgencia ? ` (${inc.subTipoCaso.urgencia})` : ''}` : inc.subTipoCaso?.descripcion} />
+                    <DataRow label="Severidad" value={inc.severidad?.descripcion} />
+                    <DataRow label="Jurisdicción" value={inc.jurisdiccion?.nombre || inc.jurisdiccion?.codigo} />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Canal</p>
+                    <DataRow label="Medio" value={inc.medio?.descripcion} />
+                    <DataRow label="Operador" value={inc.operador?.descripcion} />
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Reportante</p>
+                    <DataRow label="Tipo" value={inc.tipoReportante?.descripcion} />
+                    <DataRow label="Nombre" value={inc.nombreReportante} />
+                    <DataRow label="Teléfono" value={inc.telefonoReportante} />
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Ubicación</p>
+                    <DataRow label="Dirección" value={inc.direccion} />
+                    <DataRow label="Latitud" value={lat ? String(lat) : undefined} />
+                    <DataRow label="Longitud" value={lng ? String(lng) : undefined} />
+                  </div>
+                  <div className="md:col-span-2 mt-2 space-y-2">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Descripción</p>
+                    <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3 border border-gray-100">
+                      {inc.descripcion || <span className="text-gray-400 italic">Sin descripción</span>}
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
