@@ -75,7 +75,7 @@ function obtenerUrgencia(descripcion: string): string | null {
 
 function formatData(data: any[], subsectores: Subsector[], subtipos: Subtipo[]) {
   return data.map((inc) => {
-    const fecha = dayjs.utc(inc.createdAt).tz('America/Lima');
+    const fecha = dayjs.utc(inc.createdAt).tz('America/Lima').add(5, 'hour');
     const subtipo = subtipos.find((s) => s.id === inc.sub_tipo_caso_id);
     return {
       ...inc,
@@ -395,7 +395,7 @@ export default function SviIncidenciasPage() {
 
               <div>
                 <p className="font-semibold text-gray-700 mb-1">Descripción</p>
-                <p className="text-sm text-gray-600 whitespace-pre-line">{selected.descripcion}</p>
+                <p className="text-sm text-gray-600 whitespace-pre-line max-h-48 overflow-y-auto pr-1">{selected.descripcion}</p>
               </div>
 
               {selected.observacion && (
