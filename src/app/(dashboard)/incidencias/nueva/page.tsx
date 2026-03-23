@@ -75,11 +75,10 @@ export default function NuevaIncidenciaPage() {
   const [geocodingLoading,       setGeocodingLoading]       = useState(false);
   const [selectedTipoReportante, setSelectedTipoReportante] = useState<CatalogoItem | null>(null);
   const [serenoDni,              setSerenoDni]              = useState('');
-  const [manualNombres,          setManualNombres]          = useState('');
-  const [manualApellidos,        setManualApellidos]        = useState('');
+  const [manualNombre,           setManualNombre]           = useState('');
   const [archivosEvidencia,      setArchivosEvidencia]      = useState<ArchivoEvidencia[]>([]);
   const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { personal: personalGestionate, loading: gestionateLoading, error: gestionateError, buscarPorDni, limpiar: limpiarGestionate } = useGestionate();
+  const { personal: personalGestionate, fuente: gestionateFuente, loading: gestionateLoading, notFound: gestionateNotFound, buscarPorDni, guardarLocal, limpiar: limpiarGestionate } = useGestionate();
   const [jurisdiccionAutoFilled,  setJurisdiccionAutoFilled]  = useState(false);
   const [activeJurisdiccionName,  setActiveJurisdiccionName]  = useState<string | undefined>();
   const geojsonCache = useRef<any>(null);
@@ -132,12 +131,14 @@ export default function NuevaIncidenciaPage() {
   const lat = watch('latitud');
   const lng = watch('longitud');
 
-  // Cuando gestionate devuelve un sereno, auto-rellenar nombreReportante
+  // Auto-rellenar nombreReportante cuando se encuentra en Gestionate o local
   useEffect(() => {
-    if (personalGestionate) {
-      setValue('nombreReportante', `${personalGestionate.nombres} ${personalGestionate.apellidos}`.trim());
-    }
-  }, [personalGestionate, setValue]);
+    if (!personalGestionate || !gestionateFuente) return;
+    const nombre = gestionateFuente === 'LOCAL'
+      ? personalGestionate.nombres
+      : `${personalGestionate.nombres} ${personalGestionate.apellidos}`.trim();
+    setValue('nombreReportante', nombre);
+  }, [personalGestionate, gestionateFuente, setValue]);
 
   async function onSubmit(values: FormData) {
     // 1. Crear incidencia — si falla, parar aquí
@@ -150,6 +151,11 @@ export default function NuevaIncidenciaPage() {
       )
     ) as CreateIncidenciaDto;
 
+    // Adjuntar fuente del reportante cuando es serenazgo
+    if (esSerenazgo) {
+      payload.reportanteFuente = gestionateFuente ?? 'MANUAL';
+    }
+
     let inc: Incidencia;
     try {
       inc = await createMutation.mutateAsync(payload);
@@ -158,7 +164,12 @@ export default function NuevaIncidenciaPage() {
       return;
     }
 
-    // 2. Subir evidencias — no crítico, fallo no bloquea navegación
+    // 2. Si el sereno fue ingresado manualmente, guardarlo en local para futuras búsquedas
+    if (esSerenazgo && gestionateNotFound && serenoDni && manualNombre.trim()) {
+      await guardarLocal(serenoDni, manualNombre.trim());
+    }
+
+    // 3. Subir evidencias — no crítico, fallo no bloquea navegación
     let evidenciasError = false;
     for (const archivo of archivosEvidencia) {
       try {
@@ -374,8 +385,7 @@ export default function NuevaIncidenciaPage() {
                   const item = tipoReportantes?.find((t: CatalogoItem) => t.id === Number(v)) ?? null;
                   setSelectedTipoReportante(item);
                   setSerenoDni('');
-                  setManualNombres('');
-                  setManualApellidos('');
+                  setManualNombre('');
                   limpiarGestionate();
                   setValue('nombreReportante', '');
                 }}>
@@ -401,8 +411,7 @@ export default function NuevaIncidenciaPage() {
                         setSerenoDni(val);
                         if (val.length < 8) {
                           limpiarGestionate();
-                          setManualNombres('');
-                          setManualApellidos('');
+                          setManualNombre('');
                           setValue('nombreReportante', '');
                         }
                         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -415,7 +424,9 @@ export default function NuevaIncidenciaPage() {
                       <span className="flex items-center text-xs text-gray-400">Buscando...</span>
                     )}
                   </div>
-                  {personalGestionate && (
+
+                  {/* Encontrado en Gestionate */}
+                  {personalGestionate && gestionateFuente === 'GESTIONATE' && (
                     <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm">
                       <p className="font-medium text-green-800">
                         {personalGestionate.nombres} {personalGestionate.apellidos}
@@ -423,25 +434,28 @@ export default function NuevaIncidenciaPage() {
                       <p className="text-xs text-green-600">{personalGestionate.cargo} · {personalGestionate.subgerencia}</p>
                     </div>
                   )}
-                  {gestionateError && (
-                    <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                      <p className="text-xs text-amber-700 font-medium">No encontrado en Gestionate — ingreso manual</p>
+
+                  {/* Encontrado en tabla local */}
+                  {personalGestionate && gestionateFuente === 'LOCAL' && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
+                      <p className="font-medium text-blue-800">
+                        {personalGestionate.nombres} {personalGestionate.apellidos}
+                      </p>
+                      <p className="text-xs text-blue-500">Registrado localmente</p>
+                    </div>
+                  )}
+
+                  {/* No encontrado en ninguna fuente — ingreso manual */}
+                  {gestionateNotFound && (
+                    <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                      <p className="text-xs text-amber-700 font-medium">No encontrado — ingresa el nombre</p>
                       <Input
-                        placeholder="Nombres"
-                        className="h-8 text-sm"
-                        value={manualNombres}
+                        placeholder="Nombre completo"
+                        className="h-8 text-sm bg-white"
+                        value={manualNombre}
                         onChange={(e) => {
-                          setManualNombres(e.target.value);
-                          setValue('nombreReportante', `${e.target.value} ${manualApellidos}`.trim());
-                        }}
-                      />
-                      <Input
-                        placeholder="Apellidos"
-                        className="h-8 text-sm"
-                        value={manualApellidos}
-                        onChange={(e) => {
-                          setManualApellidos(e.target.value);
-                          setValue('nombreReportante', `${manualNombres} ${e.target.value}`.trim());
+                          setManualNombre(e.target.value);
+                          setValue('nombreReportante', e.target.value);
                         }}
                       />
                     </div>
