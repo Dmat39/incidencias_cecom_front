@@ -75,6 +75,8 @@ export default function NuevaIncidenciaPage() {
   const [geocodingLoading,       setGeocodingLoading]       = useState(false);
   const [selectedTipoReportante, setSelectedTipoReportante] = useState<CatalogoItem | null>(null);
   const [serenoDni,              setSerenoDni]              = useState('');
+  const [manualNombres,          setManualNombres]          = useState('');
+  const [manualApellidos,        setManualApellidos]        = useState('');
   const [archivosEvidencia,      setArchivosEvidencia]      = useState<ArchivoEvidencia[]>([]);
   const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { personal: personalGestionate, loading: gestionateLoading, error: gestionateError, buscarPorDni, limpiar: limpiarGestionate } = useGestionate();
@@ -372,6 +374,8 @@ export default function NuevaIncidenciaPage() {
                   const item = tipoReportantes?.find((t: CatalogoItem) => t.id === Number(v)) ?? null;
                   setSelectedTipoReportante(item);
                   setSerenoDni('');
+                  setManualNombres('');
+                  setManualApellidos('');
                   limpiarGestionate();
                   setValue('nombreReportante', '');
                 }}>
@@ -397,6 +401,8 @@ export default function NuevaIncidenciaPage() {
                         setSerenoDni(val);
                         if (val.length < 8) {
                           limpiarGestionate();
+                          setManualNombres('');
+                          setManualApellidos('');
                           setValue('nombreReportante', '');
                         }
                         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -418,7 +424,27 @@ export default function NuevaIncidenciaPage() {
                     </div>
                   )}
                   {gestionateError && (
-                    <p className="text-xs text-red-500">{gestionateError}</p>
+                    <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                      <p className="text-xs text-amber-700 font-medium">No encontrado en Gestionate — ingreso manual</p>
+                      <Input
+                        placeholder="Nombres"
+                        className="h-8 text-sm"
+                        value={manualNombres}
+                        onChange={(e) => {
+                          setManualNombres(e.target.value);
+                          setValue('nombreReportante', `${e.target.value} ${manualApellidos}`.trim());
+                        }}
+                      />
+                      <Input
+                        placeholder="Apellidos"
+                        className="h-8 text-sm"
+                        value={manualApellidos}
+                        onChange={(e) => {
+                          setManualApellidos(e.target.value);
+                          setValue('nombreReportante', `${manualNombres} ${e.target.value}`.trim());
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               </Field>
