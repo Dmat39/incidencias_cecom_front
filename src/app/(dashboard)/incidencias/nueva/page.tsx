@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,8 +21,8 @@ import {
   useSeveridades, useJurisdicciones, useEstadoIncidencias,
 } from '@/hooks/useCatalogos';
 import type { CatalogoItem } from '@/hooks/useCatalogos';
-import type { CreateIncidenciaDto, Incidencia, Sereno } from '@/types';
-import { useSerenos } from '@/hooks/useSerenos';
+import type { CreateIncidenciaDto, Incidencia } from '@/types';
+import { useGestionate } from '@/hooks/useGestionate';
 import api from '@/lib/api';
 import EvidenciasUploader, { type ArchivoEvidencia } from '@/components/incidencias/EvidenciasUploader';
 
@@ -74,12 +74,10 @@ export default function NuevaIncidenciaPage() {
   const [severidadAutoFilled,    setSeveridadAutoFilled]    = useState(false);
   const [geocodingLoading,       setGeocodingLoading]       = useState(false);
   const [selectedTipoReportante, setSelectedTipoReportante] = useState<CatalogoItem | null>(null);
-  const [serenoQuery,            setSerenoQuery]            = useState('');
-  const [showSuggestions,        setShowSuggestions]        = useState(false);
-  const [reporterSerenoId,       setReporterSerenoId]       = useState<number | null>(null);
+  const [serenoDni,              setSerenoDni]              = useState('');
   const [archivosEvidencia,      setArchivosEvidencia]      = useState<ArchivoEvidencia[]>([]);
   const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const { personal: personalGestionate, loading: gestionateLoading, error: gestionateError, buscarPorDni, limpiar: limpiarGestionate } = useGestionate();
   const [jurisdiccionAutoFilled,  setJurisdiccionAutoFilled]  = useState(false);
   const [activeJurisdiccionName,  setActiveJurisdiccionName]  = useState<string | undefined>();
   const geojsonCache = useRef<any>(null);
@@ -119,13 +117,6 @@ export default function NuevaIncidenciaPage() {
   const { data: operadoresFiltrados, isLoading: loadingOperadores } = useOperadoresByMedio(selectedMedio);
   const { data: tipoReportantes } = useTipoReportantes();
   const esSerenazgo = (selectedTipoReportante?.descripcion ?? selectedTipoReportante?.nombre ?? '').toLowerCase().includes('seren');
-  const { data: serenosData } = useSerenos({
-    search:     serenoQuery,
-    habilitado: true,
-    limit:      8,
-    page:       1,
-    enabled:    esSerenazgo && serenoQuery.length >= 2,
-  });
   const { data: severidades }        = useSeveridades();
   const { data: jurisdicciones }     = useJurisdicciones();
   const { data: estados }            = useEstadoIncidencias();
@@ -138,6 +129,13 @@ export default function NuevaIncidenciaPage() {
 
   const lat = watch('latitud');
   const lng = watch('longitud');
+
+  // Cuando gestionate devuelve un sereno, auto-rellenar nombreReportante
+  useEffect(() => {
+    if (personalGestionate) {
+      setValue('nombreReportante', `${personalGestionate.nombres} ${personalGestionate.apellidos}`.trim());
+    }
+  }, [personalGestionate, setValue]);
 
   async function onSubmit(values: FormData) {
     // 1. Crear incidencia — si falla, parar aquí
@@ -158,16 +156,7 @@ export default function NuevaIncidenciaPage() {
       return;
     }
 
-    // 2. Asignar sereno reportante — no crítico
-    if (reporterSerenoId && inc.id) {
-      try {
-        await api.patch(`/incidencias/${inc.id}/serenos`, { serenosIds: [reporterSerenoId] });
-      } catch {
-        console.warn('No se pudo asignar el sereno reportante');
-      }
-    }
-
-    // 3. Subir evidencias — no crítico, fallo no bloquea navegación
+    // 2. Subir evidencias — no crítico, fallo no bloquea navegación
     let evidenciasError = false;
     for (const archivo of archivosEvidencia) {
       try {
@@ -382,9 +371,9 @@ export default function NuevaIncidenciaPage() {
                   field.onChange(Number(v));
                   const item = tipoReportantes?.find((t: CatalogoItem) => t.id === Number(v)) ?? null;
                   setSelectedTipoReportante(item);
-                  setSerenoQuery('');
-                  setShowSuggestions(false);
-                  setReporterSerenoId(null);
+                  setSerenoDni('');
+                  limpiarGestionate();
+                  setValue('nombreReportante', '');
                 }}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>
@@ -394,63 +383,57 @@ export default function NuevaIncidenciaPage() {
               )} />
             </Field>
 
-            <Field label="Nombre del Reportante">
-              <div className="relative">
+            {esSerenazgo ? (
+              <Field label="DNI del Sereno">
+                <div className="space-y-1.5">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="8 dígitos"
+                      className="h-9 text-sm"
+                      maxLength={8}
+                      value={serenoDni}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        setSerenoDni(val);
+                        if (val.length < 8) {
+                          limpiarGestionate();
+                          setValue('nombreReportante', '');
+                        }
+                        if (debounceRef.current) clearTimeout(debounceRef.current);
+                        if (val.length === 8) {
+                          debounceRef.current = setTimeout(() => buscarPorDni(val), 300);
+                        }
+                      }}
+                    />
+                    {gestionateLoading && (
+                      <span className="flex items-center text-xs text-gray-400">Buscando...</span>
+                    )}
+                  </div>
+                  {personalGestionate && (
+                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm">
+                      <p className="font-medium text-green-800">
+                        {personalGestionate.nombres} {personalGestionate.apellidos}
+                      </p>
+                      <p className="text-xs text-green-600">{personalGestionate.cargo} · {personalGestionate.subgerencia}</p>
+                    </div>
+                  )}
+                  {gestionateError && (
+                    <p className="text-xs text-red-500">{gestionateError}</p>
+                  )}
+                </div>
+              </Field>
+            ) : (
+              <Field label="Nombre del Reportante">
                 <Input
                   name={nombreName}
                   ref={nombreRef}
                   placeholder="Nombre completo"
                   className="h-9 text-sm"
-                  autoComplete="off"
-                  onChange={(e) => {
-                    rhfNombreOnChange(e);
-                    if (!esSerenazgo) return;
-                    const val = e.target.value.trim();
-                    if (debounceRef.current) clearTimeout(debounceRef.current);
-                    if (val.length < 2) {
-                      setShowSuggestions(false);
-                      setSerenoQuery('');
-                      setReporterSerenoId(null);
-                      return;
-                    }
-                    debounceRef.current = setTimeout(() => {
-                      setSerenoQuery(val);
-                      setShowSuggestions(true);
-                    }, 300);
-                  }}
-                  onBlur={(e) => {
-                    rhfNombreOnBlur(e);
-                    setTimeout(() => setShowSuggestions(false), 150);
-                  }}
+                  onChange={rhfNombreOnChange}
+                  onBlur={rhfNombreOnBlur}
                 />
-                {showSuggestions && esSerenazgo && (serenosData?.data ?? []).length > 0 && (
-                  <div
-                    ref={suggestionsRef}
-                    className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-52 overflow-y-auto"
-                  >
-                    {(serenosData?.data ?? []).map((s: Sereno) => {
-                      const nombre = `${s.nombres ?? ''} ${s.apellidoPaterno ?? ''} ${s.apellidoMaterno ?? ''}`.trim();
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex flex-col"
-                          onMouseDown={() => {
-                            setValue('nombreReportante', nombre);
-                            setReporterSerenoId(s.id);
-                            setShowSuggestions(false);
-                            setSerenoQuery('');
-                          }}
-                        >
-                          <span className="font-medium text-gray-800">{nombre}</span>
-                          {s.dni && <span className="text-xs text-gray-400">DNI: {s.dni}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </Field>
+              </Field>
+            )}
 
             <div className="col-span-1">
               <Field label="Teléfono">

@@ -254,7 +254,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
         <TabsList className="bg-gray-100">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="atencion">Atención</TabsTrigger>
-          <TabsTrigger value="serenos">Serenos</TabsTrigger>
+          {/* <TabsTrigger value="serenos">Serenos</TabsTrigger> */}
           <TabsTrigger value="evidencias">Evidencias</TabsTrigger>
           <TabsTrigger value="mapa">Mapa</TabsTrigger>
         </TabsList>
@@ -685,59 +685,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
           </Card>
         </TabsContent>
 
-        {/* TAB: Serenos */}
-        <TabsContent value="serenos">
-          <Card className="border border-gray-200">
-            <CardContent className="p-5 space-y-4">
-              <Input
-                placeholder="Buscar sereno por nombre o DNI..."
-                value={serenoSearch}
-                onChange={(e) => setSerenoSearch(e.target.value)}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-                {filteredSerenos?.map((s) => {
-                  const assigned = assignedSerenoIds.includes(s.id);
-                  return (
-                    <div
-                      key={s.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                        assigned ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:bg-gray-50'
-                      }`}
-                      onClick={() => handleToggleSereno(s.id)}
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          {s.nombres} {s.apellidoPaterno} {s.apellidoMaterno}
-                        </p>
-                        <p className="text-xs text-gray-500">{s.dni} · {s.cargoSereno?.descripcion}</p>
-                      </div>
-                      {assigned ? (
-                        <UserCheck className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <span className="text-xs text-gray-400">+ Asignar</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {(inc.serenos || []).length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-2 font-medium">Serenos asignados:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(inc.serenos || []).map(({ sereno }) => (
-                      <span key={sereno.id} className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
-                        {sereno.nombres} {sereno.apellidoPaterno}
-                        <button onClick={() => handleToggleSereno(sereno.id)}>
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {/* TAB: Serenos — oculto temporalmente, el reportante sereno se registra en Datos del Reportante */}
 
         {/* TAB: Evidencias */}
         <TabsContent value="evidencias">
