@@ -31,8 +31,8 @@ const MapPicker = dynamic(() => import('@/components/incidencias/MapPicker'), { 
 function DataRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex gap-2 text-sm">
-      <span className="text-gray-500 min-w-40 font-medium">{label}:</span>
-      <span className="text-gray-800">{value || <span className="text-gray-400 italic">Sin datos</span>}</span>
+      <span className="text-gray-500 dark:text-gray-400 min-w-40 font-medium">{label}:</span>
+      <span className="text-gray-800 dark:text-gray-100">{value || <span className="text-gray-400 dark:text-gray-500 italic">Sin datos</span>}</span>
     </div>
   );
 }
@@ -232,8 +232,8 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h2 className="text-xl font-bold text-gray-800 font-mono">{inc.codigoIncidencia || `#${inc.id}`}</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 font-mono">{inc.codigoIncidencia || `#${inc.id}`}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             {formatDate(inc.registradoEn, "dd 'de' MMMM yyyy, HH:mm")}
           </p>
         </div>
@@ -251,7 +251,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
       </div>
 
       <Tabs defaultValue="general">
-        <TabsList className="bg-gray-100">
+        <TabsList className="bg-gray-100 dark:bg-gray-800">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="atencion">Atención</TabsTrigger>
           {/* <TabsTrigger value="serenos">Serenos</TabsTrigger> */}
@@ -261,7 +261,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
         {/* TAB: General */}
         <TabsContent value="general">
-          <Card className="border border-gray-200">
+          <Card className="border border-gray-200 dark:border-gray-700">
             <CardContent className="p-5 space-y-4">
               {/* Encabezado con botón editar/cancelar */}
               <div className="flex justify-end gap-2">
@@ -478,7 +478,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                 /* MODO LECTURA */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
                   <div className="space-y-2">
-                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Clasificación</p>
+                    <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Clasificación</p>
                     <DataRow label="Unidad" value={inc.unidad?.descripcion} />
                     <DataRow label="Tipo de caso" value={inc.tipoCaso?.codigo ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}` : inc.tipoCaso?.descripcion} />
                     <DataRow label="Subtipo" value={inc.subTipoCaso?.codigo ? `${inc.subTipoCaso.codigo} - ${inc.subTipoCaso.descripcion}${inc.subTipoCaso.urgencia ? ` (${inc.subTipoCaso.urgencia})` : ''}` : inc.subTipoCaso?.descripcion} />
@@ -486,25 +486,25 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                     <DataRow label="Jurisdicción" value={inc.jurisdiccion?.nombre || inc.jurisdiccion?.codigo} />
                   </div>
                   <div className="space-y-2">
-                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Canal</p>
+                    <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Canal</p>
                     <DataRow label="Medio" value={inc.medio?.descripcion} />
                     <DataRow label="Operador" value={inc.operador?.descripcion} />
                   </div>
                   <div className="space-y-2 mt-4">
-                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Reportante</p>
+                    <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Reportante</p>
                     <DataRow label="Tipo" value={inc.tipoReportante?.descripcion} />
                     <DataRow label="Nombre" value={inc.nombreReportante} />
                     <DataRow label="Teléfono" value={inc.telefonoReportante} />
                   </div>
                   <div className="space-y-2 mt-4">
-                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Ubicación</p>
+                    <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Ubicación</p>
                     <DataRow label="Dirección" value={inc.direccion} />
                     <DataRow label="Latitud" value={lat ? String(lat) : undefined} />
                     <DataRow label="Longitud" value={lng ? String(lng) : undefined} />
                   </div>
                   <div className="md:col-span-2 mt-2 space-y-2">
-                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-2">Descripción</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-md p-3 border border-gray-100">
+                    <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Descripción</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded-md p-3 border border-gray-100 dark:border-gray-700/50">
                       {inc.descripcion || <span className="text-gray-400 italic">Sin descripción</span>}
                     </p>
                   </div>
@@ -516,7 +516,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
         {/* TAB: Atención */}
         <TabsContent value="atencion">
-          <Card className="border border-gray-200">
+          <Card className="border border-gray-200 dark:border-gray-700">
             <CardContent className="p-5 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1 md:col-span-2">
@@ -689,7 +689,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
         {/* TAB: Evidencias */}
         <TabsContent value="evidencias">
-          <Card className="border border-gray-200">
+          <Card className="border border-gray-200 dark:border-gray-700">
             <CardContent className="p-5 space-y-4">
               {/* Upload */}
               <div className="flex items-center gap-3">
@@ -716,11 +716,11 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                     const video  = isVideo(nombre);
 
                     return (
-                      <div key={ev.id} className="group relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex flex-col">
+                      <div key={ev.id} className="group relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800/50 flex flex-col">
                         {/* Previsualización */}
                         {imagen && url ? (
                           <button
-                            className="relative w-full aspect-square overflow-hidden bg-gray-100 flex items-center justify-center"
+                            className="relative w-full aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center"
                             onClick={() => setLightbox(url)}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -738,7 +738,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                             <video src={url} className="w-full h-full object-contain" controls />
                           </div>
                         ) : (
-                          <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
+                          <div className="w-full aspect-square bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center">
                             {nombre.endsWith('.pdf')
                               ? <FileText className="h-10 w-10 text-red-400" />
                               : <File className="h-10 w-10 text-gray-400" />}
@@ -747,7 +747,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
                         {/* Info + descarga */}
                         <div className="p-2 flex flex-col gap-0.5">
-                          <p className="text-xs text-gray-700 truncate font-medium" title={nombre || ''}>
+                          <p className="text-xs text-gray-700 dark:text-gray-300 truncate font-medium" title={nombre || ''}>
                             {nombre || 'archivo'}
                           </p>
                           {ev.fechaHoraRegistro && (
@@ -798,7 +798,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
         {/* TAB: Mapa */}
         <TabsContent value="mapa">
-          <Card className="border border-gray-200">
+          <Card className="border border-gray-200 dark:border-gray-700">
             <CardContent className="p-0 h-96 rounded-lg overflow-hidden">
               {lat && lng ? (
                 <MapView

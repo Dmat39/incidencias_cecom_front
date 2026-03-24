@@ -90,7 +90,7 @@ export default function CatalogoTable({ items, isLoading, onCreate, onUpdate, on
       </div>
 
       {/* Tabla */}
-      <div className="border rounded-lg shadow-sm flex flex-col">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm flex flex-col dark:bg-gray-900">
         <div className="overflow-x-auto rounded-t-lg">
           <div className="overflow-y-auto" style={{ height: 'calc(100vh - 320px)' }}>
             <Table>
@@ -111,15 +111,15 @@ export default function CatalogoTable({ items, isLoading, onCreate, onUpdate, on
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
-                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/40'}>
                       {[1, 2, 3, 4].map((j) => (
-                        <TableCell key={j}><div className="h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
+                        <TableCell key={j}><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></TableCell>
                       ))}
                     </TableRow>
                   ))
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-12 text-gray-400 text-sm">
+                    <TableCell colSpan={4} className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
                       {search ? 'No hay resultados para la búsqueda.' : 'Sin registros.'}
                     </TableCell>
                   </TableRow>
@@ -127,14 +127,14 @@ export default function CatalogoTable({ items, isLoading, onCreate, onUpdate, on
                   filtered.map((item, idx) => (
                     <TableRow
                       key={item.id}
-                      className={`transition-colors hover:bg-green-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}
+                      className={`transition-colors hover:bg-green-50 dark:hover:bg-green-900/15 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}
                     >
-                      <TableCell className="py-2.5 text-sm text-gray-500">{item.id}</TableCell>
-                      <TableCell className="py-2.5 text-sm text-gray-800 font-medium">
+                      <TableCell className="py-2.5 text-sm text-gray-500 dark:text-gray-400">{item.id}</TableCell>
+                      <TableCell className="py-2.5 text-sm text-gray-800 dark:text-gray-100 font-medium">
                         {item.descripcion || item.nombre || '-'}
                       </TableCell>
                       <TableCell className="py-2.5">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.habilitado !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.habilitado !== false ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'}`}>
                           {item.habilitado !== false ? 'Activo' : 'Inactivo'}
                         </span>
                       </TableCell>
@@ -143,14 +143,14 @@ export default function CatalogoTable({ items, isLoading, onCreate, onUpdate, on
                           <button
                             title="Editar"
                             onClick={() => openEdit(item)}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             title="Eliminar"
                             onClick={() => handleDelete(item.id)}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded text-red-600 hover:bg-red-50 transition-colors"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

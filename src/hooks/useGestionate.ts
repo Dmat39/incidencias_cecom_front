@@ -13,10 +13,12 @@ export interface PersonalGestionate {
 export type FuenteReportante = 'GESTIONATE' | 'LOCAL' | 'MANUAL';
 
 export function useGestionate() {
-  const [personal,  setPersonal]  = useState<PersonalGestionate | null>(null);
-  const [fuente,    setFuente]    = useState<FuenteReportante | null>(null);
-  const [loading,   setLoading]   = useState(false);
-  const [notFound,  setNotFound]  = useState(false); // no está en ninguna de las dos
+  const [personal,      setPersonal]      = useState<PersonalGestionate | null>(null);
+  const [fuente,        setFuente]        = useState<FuenteReportante | null>(null);
+  const [loading,       setLoading]       = useState(false);
+  const [notFound,      setNotFound]      = useState(false); // no está en ninguna de las dos
+  const [nombreResults, setNombreResults] = useState<PersonalGestionate[]>([]);
+  const [nombreLoading, setNombreLoading] = useState(false);
 
   const buscarPorDni = useCallback(async (dni: string) => {
     if (dni.length !== 8) return;
@@ -50,6 +52,28 @@ export function useGestionate() {
     setLoading(false);
   }, []);
 
+  const buscarPorNombre = useCallback(async (q: string) => {
+    if (q.length < 2) { setNombreResults([]); return; }
+    setNombreLoading(true);
+    try {
+      const { data } = await api.get<{ data: PersonalGestionate[] }>(
+        `/gestionate/personal/local/buscar-nombre?q=${encodeURIComponent(q)}`
+      );
+      setNombreResults(data.data ?? []);
+    } catch {
+      setNombreResults([]);
+    } finally {
+      setNombreLoading(false);
+    }
+  }, []);
+
+  const seleccionarPorNombre = useCallback((p: PersonalGestionate) => {
+    setPersonal(p);
+    setFuente('LOCAL');
+    setNotFound(false);
+    setNombreResults([]);
+  }, []);
+
   const guardarLocal = useCallback(async (dni: string, nombreCompleto: string) => {
     try {
       await api.post('/gestionate/personal/local', { dni, nombreCompleto });
@@ -60,7 +84,12 @@ export function useGestionate() {
     setPersonal(null);
     setFuente(null);
     setNotFound(false);
+    setNombreResults([]);
   }, []);
 
-  return { personal, fuente, loading, notFound, buscarPorDni, guardarLocal, limpiar };
+  return {
+    personal, fuente, loading, notFound,
+    nombreResults, nombreLoading,
+    buscarPorDni, buscarPorNombre, seleccionarPorNombre, guardarLocal, limpiar,
+  };
 }

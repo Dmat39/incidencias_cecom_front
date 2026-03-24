@@ -111,8 +111,8 @@ export default function SviHistorialPage() {
   return (
     <div className="h-full flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <History className="h-5 w-5 text-slate-600" />
-        <h1 className="text-xl font-semibold text-gray-800">Historial de Incidencias — SVI</h1>
+        <History className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Historial de Incidencias — SVI</h1>
       </div>
 
       {/* Filtros */}
@@ -120,7 +120,7 @@ export default function SviHistorialPage() {
         <select
           value={turno}
           onChange={(e) => handleTurnoChange(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+          className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-slate-400"
         >
           {TURNOS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -129,7 +129,7 @@ export default function SviHistorialPage() {
           type="date"
           value={fecha}
           onChange={(e) => handleFechaChange(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+          className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-slate-400"
         />
 
         <Button variant="outline" size="sm" onClick={exportToExcel} disabled={historial.length === 0}>

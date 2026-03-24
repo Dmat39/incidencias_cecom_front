@@ -24,9 +24,9 @@ interface AuditoriaEntry {
 const PAGE_SIZES = [10, 20, 50, 100];
 
 const ACCION_BADGE: Record<string, string> = {
-  CREAR:    'bg-green-100 text-green-700',
-  EDITAR:   'bg-blue-100 text-blue-700',
-  ELIMINAR: 'bg-red-100 text-red-700',
+  CREAR:    'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  EDITAR:   'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+  ELIMINAR: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
 };
 
 export default function AuditoriaPage() {
@@ -74,8 +74,8 @@ export default function AuditoriaPage() {
       {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Auditoría</h1>
-          <p className="text-sm text-gray-500">Registro de acciones realizadas en el sistema</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Auditoría</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Registro de acciones realizadas en el sistema</p>
         </div>
       </div>
 
@@ -93,7 +93,7 @@ export default function AuditoriaPage() {
       </div>
 
       {/* Tabla */}
-      <div className="border rounded-lg shadow-sm flex flex-col">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm flex flex-col dark:bg-gray-900">
         <div className="overflow-x-auto rounded-t-lg">
           <div className="overflow-y-auto min-w-[800px]" style={{ height: 'calc(100vh - 260px)' }}>
             <Table>
@@ -116,9 +116,9 @@ export default function AuditoriaPage() {
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
-                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/40'}>
                       {[1,2,3,4,5,6].map((j) => (
-                        <TableCell key={j}><div className="h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
+                        <TableCell key={j}><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></TableCell>
                       ))}
                     </TableRow>
                   ))
@@ -132,10 +132,10 @@ export default function AuditoriaPage() {
                   entries.map((entry, idx) => (
                     <TableRow
                       key={entry.id}
-                      className={`transition-colors hover:bg-green-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}
+                      className={`transition-colors hover:bg-green-50 dark:hover:bg-green-900/15 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}
                     >
                       <TableCell className="py-2.5">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 font-medium">
                           {entry.modulo}
                         </span>
                       </TableCell>
@@ -144,12 +144,12 @@ export default function AuditoriaPage() {
                           {entry.accion}
                         </span>
                       </TableCell>
-                      <TableCell className="py-2.5 text-sm text-gray-800 max-w-[150px] truncate" title={entry.usuarioAfectado || ''}>{entry.usuarioAfectado || '—'}</TableCell>
-                      <TableCell className="py-2.5 text-sm font-medium text-gray-700">{entry.realizadoPor}</TableCell>
-                      <TableCell className="py-2.5 text-xs text-gray-500 max-w-[220px] truncate" title={entry.detalles ? JSON.stringify(entry.detalles) : ''}>
+                      <TableCell className="py-2.5 text-sm text-gray-800 dark:text-gray-100 max-w-[150px] truncate" title={entry.usuarioAfectado || ''}>{entry.usuarioAfectado || '—'}</TableCell>
+                      <TableCell className="py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200">{entry.realizadoPor}</TableCell>
+                      <TableCell className="py-2.5 text-xs text-gray-500 dark:text-gray-400 max-w-[220px] truncate" title={entry.detalles ? JSON.stringify(entry.detalles) : ''}>
                         {entry.detalles ? JSON.stringify(entry.detalles) : '—'}
                       </TableCell>
-                      <TableCell className="py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                      <TableCell className="py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {formatDate(entry.createdAt, "dd/MM/yyyy HH:mm")}
                       </TableCell>
                     </TableRow>
@@ -162,33 +162,33 @@ export default function AuditoriaPage() {
 
         {/* Paginación */}
         {!isLoading && total > 0 && (
-          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 bg-white">
+          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500 whitespace-nowrap">Filas por página:</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">Filas por página:</span>
               <select
                 value={limit}
                 onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
-                className="h-7 text-sm border border-gray-300 rounded px-1 bg-white focus:outline-none"
+                className="h-7 text-sm border border-gray-300 dark:border-gray-600 rounded px-1 bg-white dark:bg-gray-800 dark:text-gray-300 focus:outline-none"
               >
                 {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <span className="text-sm text-gray-500 whitespace-nowrap">{startRow}–{endRow} de {total}</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{startRow}–{endRow} de {total}</span>
             <div className="flex items-center gap-0.5">
               <button disabled={page <= 1} onClick={() => setPage(1)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronsLeft className="h-4 w-4" />
               </button>
               <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronRight className="h-4 w-4" />
               </button>
               <button disabled={page >= totalPages} onClick={() => setPage(totalPages)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronsRight className="h-4 w-4" />
               </button>
             </div>

@@ -50,8 +50,8 @@ type FormData = z.infer<typeof schema>;
 
 function SectionTitle({ title }: { title: string }) {
   return (
-    <div className="px-5 py-2.5 bg-gray-100 border-b border-gray-200">
-      <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">{title}</p>
+    <div className="px-5 py-2.5 bg-gray-100 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+      <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">{title}</p>
     </div>
   );
 }
@@ -59,7 +59,7 @@ function SectionTitle({ title }: { title: string }) {
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className="text-sm text-gray-600">{label}</Label>
+      <Label className="text-sm text-gray-600 dark:text-gray-400">{label}</Label>
       {children}
     </div>
   );
@@ -76,9 +76,12 @@ export default function NuevaIncidenciaPage() {
   const [selectedTipoReportante, setSelectedTipoReportante] = useState<CatalogoItem | null>(null);
   const [serenoDni,              setSerenoDni]              = useState('');
   const [manualNombre,           setManualNombre]           = useState('');
+  const [serenoSearchMode,       setSerenoSearchMode]       = useState<'dni' | 'nombre'>('dni');
+  const [serenoNombreQuery,      setSerenoNombreQuery]      = useState('');
   const [archivosEvidencia,      setArchivosEvidencia]      = useState<ArchivoEvidencia[]>([]);
-  const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { personal: personalGestionate, fuente: gestionateFuente, loading: gestionateLoading, notFound: gestionateNotFound, buscarPorDni, guardarLocal, limpiar: limpiarGestionate } = useGestionate();
+  const debounceRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nombreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { personal: personalGestionate, fuente: gestionateFuente, loading: gestionateLoading, notFound: gestionateNotFound, nombreResults: serenoNombreResults, nombreLoading: serenoNombreLoading, buscarPorDni, buscarPorNombre, seleccionarPorNombre, guardarLocal, limpiar: limpiarGestionate } = useGestionate();
   const [jurisdiccionAutoFilled,  setJurisdiccionAutoFilled]  = useState(false);
   const [activeJurisdiccionName,  setActiveJurisdiccionName]  = useState<string | undefined>();
   const geojsonCache = useRef<any>(null);
@@ -200,15 +203,15 @@ export default function NuevaIncidenciaPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Nueva Incidencia</h1>
-          <p className="text-sm text-gray-500">Complete los datos para registrar una nueva incidencia</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Nueva Incidencia</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Complete los datos para registrar una nueva incidencia</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
         {/* Clasificación */}
-        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionTitle title="Clasificación" />
           <div className="p-5 grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <div style={{ minWidth: 0, width: '100%' }}>
@@ -333,7 +336,7 @@ export default function NuevaIncidenciaPage() {
         </div>
 
         {/* Canal de Reporte */}
-        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionTitle title="Canal de Reporte" />
           <div className="p-5 grid grid-cols-2 gap-4">
             <Field label="Medio de Comunicación">
@@ -375,7 +378,7 @@ export default function NuevaIncidenciaPage() {
         </div>
 
         {/* Datos del Reportante */}
-        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionTitle title="Datos del Reportante" />
           <div className="p-5 grid grid-cols-2 gap-4">
             <Field label="Tipo de Reportante">
@@ -386,6 +389,8 @@ export default function NuevaIncidenciaPage() {
                   setSelectedTipoReportante(item);
                   setSerenoDni('');
                   setManualNombre('');
+                  setSerenoSearchMode('dni');
+                  setSerenoNombreQuery('');
                   limpiarGestionate();
                   setValue('nombreReportante', '');
                 }}>
@@ -398,66 +403,171 @@ export default function NuevaIncidenciaPage() {
             </Field>
 
             {esSerenazgo ? (
-              <Field label="DNI del Sereno">
-                <div className="space-y-1.5">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="8 dígitos"
-                      className="h-9 text-sm"
-                      maxLength={8}
-                      value={serenoDni}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        setSerenoDni(val);
-                        if (val.length < 8) {
-                          limpiarGestionate();
-                          setManualNombre('');
-                          setValue('nombreReportante', '');
-                        }
-                        if (debounceRef.current) clearTimeout(debounceRef.current);
-                        if (val.length === 8) {
-                          debounceRef.current = setTimeout(() => buscarPorDni(val), 300);
-                        }
+              <Field label="Buscar Sereno">
+                <div className="space-y-2">
+                  {/* Toggle DNI / Nombre */}
+                  <div className="flex border border-gray-200 rounded overflow-hidden text-xs">
+                    <button
+                      type="button"
+                      className={`flex-1 py-1.5 font-medium transition-colors ${serenoSearchMode === 'dni' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                      onClick={() => {
+                        setSerenoSearchMode('dni');
+                        setSerenoNombreQuery('');
+                        limpiarGestionate();
+                        setManualNombre('');
+                        setValue('nombreReportante', '');
                       }}
-                    />
-                    {gestionateLoading && (
-                      <span className="flex items-center text-xs text-gray-400">Buscando...</span>
-                    )}
+                    >
+                      Por DNI
+                    </button>
+                    <button
+                      type="button"
+                      className={`flex-1 py-1.5 font-medium transition-colors ${serenoSearchMode === 'nombre' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                      onClick={() => {
+                        setSerenoSearchMode('nombre');
+                        setSerenoDni('');
+                        limpiarGestionate();
+                        setManualNombre('');
+                        setValue('nombreReportante', '');
+                      }}
+                    >
+                      Por Nombre
+                    </button>
                   </div>
 
-                  {/* Encontrado en Gestionate */}
-                  {personalGestionate && gestionateFuente === 'GESTIONATE' && (
-                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm">
-                      <p className="font-medium text-green-800">
-                        {personalGestionate.nombres} {personalGestionate.apellidos}
-                      </p>
-                      <p className="text-xs text-green-600">{personalGestionate.cargo} · {personalGestionate.subgerencia}</p>
+                  {/* Búsqueda por DNI */}
+                  {serenoSearchMode === 'dni' && (
+                    <div className="space-y-1.5">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="8 dígitos"
+                          className="h-9 text-sm"
+                          maxLength={8}
+                          value={serenoDni}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            setSerenoDni(val);
+                            if (val.length < 8) {
+                              limpiarGestionate();
+                              setManualNombre('');
+                              setValue('nombreReportante', '');
+                            }
+                            if (debounceRef.current) clearTimeout(debounceRef.current);
+                            if (val.length === 8) {
+                              debounceRef.current = setTimeout(() => buscarPorDni(val), 300);
+                            }
+                          }}
+                        />
+                        {gestionateLoading && (
+                          <span className="flex items-center text-xs text-gray-400">Buscando...</span>
+                        )}
+                      </div>
+
+                      {/* Encontrado en Gestionate */}
+                      {personalGestionate && gestionateFuente === 'GESTIONATE' && (
+                        <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm">
+                          <p className="font-medium text-green-800">
+                            {personalGestionate.nombres} {personalGestionate.apellidos}
+                          </p>
+                          <p className="text-xs text-green-600">{personalGestionate.cargo} · {personalGestionate.subgerencia}</p>
+                        </div>
+                      )}
+
+                      {/* Encontrado en tabla local */}
+                      {personalGestionate && gestionateFuente === 'LOCAL' && (
+                        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
+                          <p className="font-medium text-blue-800">
+                            {personalGestionate.nombres} {personalGestionate.apellidos}
+                          </p>
+                          <p className="text-xs text-blue-500">Registrado localmente</p>
+                        </div>
+                      )}
+
+                      {/* No encontrado en ninguna fuente — ingreso manual */}
+                      {gestionateNotFound && (
+                        <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                          <p className="text-xs text-amber-700 font-medium">No encontrado — ingresa el nombre</p>
+                          <Input
+                            placeholder="Nombre completo"
+                            className="h-8 text-sm bg-white"
+                            value={manualNombre}
+                            onChange={(e) => {
+                              setManualNombre(e.target.value);
+                              setValue('nombreReportante', e.target.value);
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Encontrado en tabla local */}
-                  {personalGestionate && gestionateFuente === 'LOCAL' && (
-                    <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
-                      <p className="font-medium text-blue-800">
-                        {personalGestionate.nombres} {personalGestionate.apellidos}
-                      </p>
-                      <p className="text-xs text-blue-500">Registrado localmente</p>
-                    </div>
-                  )}
+                  {/* Búsqueda por Nombre (solo local) */}
+                  {serenoSearchMode === 'nombre' && (
+                    <div className="space-y-1.5">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Nombre o apellido..."
+                          className="h-9 text-sm"
+                          value={serenoNombreQuery}
+                          onChange={(e) => {
+                            const q = e.target.value;
+                            setSerenoNombreQuery(q);
+                            limpiarGestionate();
+                            setValue('nombreReportante', '');
+                            if (nombreDebounceRef.current) clearTimeout(nombreDebounceRef.current);
+                            if (q.length >= 2) {
+                              nombreDebounceRef.current = setTimeout(() => buscarPorNombre(q), 300);
+                            }
+                          }}
+                        />
+                        {serenoNombreLoading && (
+                          <span className="flex items-center text-xs text-gray-400">Buscando...</span>
+                        )}
+                      </div>
 
-                  {/* No encontrado en ninguna fuente — ingreso manual */}
-                  {gestionateNotFound && (
-                    <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                      <p className="text-xs text-amber-700 font-medium">No encontrado — ingresa el nombre</p>
-                      <Input
-                        placeholder="Nombre completo"
-                        className="h-8 text-sm bg-white"
-                        value={manualNombre}
-                        onChange={(e) => {
-                          setManualNombre(e.target.value);
-                          setValue('nombreReportante', e.target.value);
-                        }}
-                      />
+                      {/* Lista de resultados */}
+                      {serenoNombreResults.length > 0 && !personalGestionate && (
+                        <div className="rounded border border-gray-200 divide-y divide-gray-100 max-h-44 overflow-y-auto shadow-sm">
+                          {serenoNombreResults.map((s) => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
+                              onClick={() => {
+                                seleccionarPorNombre(s);
+                                const nombreCompleto = `${s.nombres} ${s.apellidos}`.trim();
+                                setValue('nombreReportante', nombreCompleto);
+                                setSerenoNombreQuery(nombreCompleto);
+                              }}
+                            >
+                              <p className="font-medium text-gray-800">{s.nombres} {s.apellidos}</p>
+                              {(s.dni || s.cargo) && (
+                                <p className="text-xs text-gray-500">
+                                  {s.dni && `DNI: ${s.dni}`}{s.dni && s.cargo && ' · '}{s.cargo}
+                                </p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Sereno seleccionado */}
+                      {personalGestionate && gestionateFuente === 'LOCAL' && (
+                        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
+                          <p className="font-medium text-blue-800">
+                            {personalGestionate.nombres} {personalGestionate.apellidos}
+                          </p>
+                          <p className="text-xs text-blue-500">
+                            {personalGestionate.dni && `DNI: ${personalGestionate.dni}`}
+                            {personalGestionate.dni && personalGestionate.cargo && ' · '}
+                            {personalGestionate.cargo}
+                          </p>
+                        </div>
+                      )}
+
+                      {serenoNombreQuery.length >= 2 && !serenoNombreLoading && serenoNombreResults.length === 0 && !personalGestionate && (
+                        <p className="text-xs text-gray-400 px-1">Sin resultados en la tabla local</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -487,7 +597,7 @@ export default function NuevaIncidenciaPage() {
         </div>
 
         {/* Ubicación */}
-        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionTitle title="Ubicación del Incidente" />
           <div className="p-5 space-y-4">
             <Field label="Dirección">
@@ -550,7 +660,7 @@ export default function NuevaIncidenciaPage() {
         </div>
 
         {/* Descripción */}
-        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionTitle title="Descripción" />
           <div className="p-5 grid grid-cols-2 gap-4">
             <div className="col-span-2">
@@ -578,7 +688,7 @@ export default function NuevaIncidenciaPage() {
         </div>
 
         {/* Evidencias */}
-        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionTitle title="Evidencias (opcional)" />
           <div className="p-5">
             <EvidenciasUploader
@@ -589,7 +699,7 @@ export default function NuevaIncidenciaPage() {
         </div>
 
         {/* Clasificación Final */}
-        <div className="bg-white rounded shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionTitle title="Clasificación Final" />
           <div className="p-5 grid grid-cols-2 gap-4">
             <Field label={

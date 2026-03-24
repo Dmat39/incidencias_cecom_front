@@ -50,9 +50,9 @@ export default function CatalogosPage() {
   return (
     <div>
       <Tabs defaultValue="unidades" className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-gray-100 p-1 mb-4">
+        <TabsList className="flex flex-wrap h-auto gap-1 bg-gray-100 dark:bg-gray-800 p-1 mb-4">
           {catalogs.map((cat) => (
-            <TabsTrigger key={cat.value} value={cat.value} className="text-xs data-[state=active]:bg-green-600 data-[state=active]:text-white">
+            <TabsTrigger key={cat.value} value={cat.value} className="text-xs text-gray-600 dark:text-gray-300 data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=inactive]:hover:bg-gray-200 dark:data-[state=inactive]:hover:bg-gray-700">
               {cat.label}
             </TabsTrigger>
           ))}
