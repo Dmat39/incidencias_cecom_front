@@ -2,9 +2,27 @@ import axios from 'axios';
 
 let sviToken: string | null = null;
 
-export const setSviToken = (token: string | null) => { sviToken = token; };
+if (typeof window !== 'undefined') {
+  sviToken = localStorage.getItem('svi_token');
+}
+
+export const setSviToken = (token: string | null) => {
+  sviToken = token;
+  if (typeof window !== 'undefined') {
+    token
+      ? localStorage.setItem('svi_token', token)
+      : localStorage.removeItem('svi_token');
+  }
+};
+
 export const getSviToken = () => sviToken;
-export const clearSviToken = () => { sviToken = null; };
+
+export const clearSviToken = () => {
+  sviToken = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('svi_token');
+  }
+};
 
 const apiSvi = axios.create({
   baseURL: process.env.NEXT_PUBLIC_SVI_API_URL || 'http://localhost:3008/api',
@@ -13,7 +31,9 @@ const apiSvi = axios.create({
 
 apiSvi.interceptors.request.use(
   (config) => {
-    if (sviToken) config.headers.Authorization = `Bearer ${sviToken}`;
+    // Leer siempre el token más reciente (por si se actualizó después de montar)
+    const token = sviToken ?? (typeof window !== 'undefined' ? localStorage.getItem('svi_token') : null);
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
   (error) => Promise.reject(error),
