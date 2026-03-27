@@ -27,25 +27,25 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 142.1 70.6% 45.3%;
+    --background: 220 14% 8%;        /* #111418 — fondo principal oscuro */
+    --foreground: 210 30% 94%;       /* casi blanco */
+    --card: 220 14% 11%;             /* #16191e — superficie de tarjetas */
+    --card-foreground: 210 30% 94%;
+    --popover: 220 14% 13%;          /* #1a1e24 — popovers/dropdowns */
+    --popover-foreground: 210 30% 94%;
+    --primary: 142.1 70.6% 45.3%;   /* verde mantenido */
     --primary-foreground: 144.9 80.4% 10%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --secondary: 220 14% 17%;        /* #20252d — elementos interactivos */
+    --secondary-foreground: 210 30% 94%;
+    --muted: 220 14% 17%;
+    --muted-foreground: 215 12% 58%; /* texto secundario gris suave */
+    --accent: 220 14% 19%;
+    --accent-foreground: 210 30% 94%;
+    --destructive: 0 70% 35%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 142.4 71.8% 29.2%;
+    --border: 220 14% 21%;           /* #28303a — bordes sutiles */
+    --input: 220 14% 15%;            /* #1c2028 — fondo de inputs */
+    --ring: 142.4 71.8% 35%;
   }
 }
 

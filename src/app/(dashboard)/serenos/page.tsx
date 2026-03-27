@@ -81,8 +81,8 @@ export default function SerenosPage() {
       {/* ── Encabezado ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Serenos</h1>
-          <p className="text-sm text-gray-500">Gestión del personal de serenazgo</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Serenos</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Gestión del personal de serenazgo</p>
         </div>
         <Button onClick={openCreate} className="bg-green-600 hover:bg-green-700">
           <Plus className="h-4 w-4 mr-1.5" /> Nuevo sereno
@@ -103,7 +103,7 @@ export default function SerenosPage() {
       </div>
 
       {/* ── Tabla ── */}
-      <div className="border rounded-lg shadow-sm flex flex-col">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm flex flex-col dark:bg-gray-900">
         <div className="overflow-x-auto rounded-t-lg">
           <div className="overflow-y-auto min-w-[700px]" style={{ height: 'calc(100vh - 260px)' }}>
             <Table>
@@ -125,9 +125,9 @@ export default function SerenosPage() {
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
-                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/40'}>
                       {[1, 2, 3, 4, 5].map((j) => (
-                        <TableCell key={j}><div className="h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
+                        <TableCell key={j}><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></TableCell>
                       ))}
                     </TableRow>
                   ))
@@ -141,15 +141,15 @@ export default function SerenosPage() {
                   serenos.map((s: Sereno, idx: number) => (
                     <TableRow
                       key={s.id}
-                      className={`transition-colors hover:bg-green-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}
+                      className={`transition-colors hover:bg-green-50 dark:hover:bg-green-900/15 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}
                     >
-                      <TableCell className="py-2.5 font-mono text-sm text-gray-700">{s.dni || '-'}</TableCell>
-                      <TableCell className="py-2.5 text-sm text-gray-800">
+                      <TableCell className="py-2.5 font-mono text-sm text-gray-700 dark:text-gray-300">{s.dni || '-'}</TableCell>
+                      <TableCell className="py-2.5 text-sm text-gray-800 dark:text-gray-100">
                         {[s.apellidoPaterno, s.apellidoMaterno, s.nombres].filter(Boolean).join(' ') || '-'}
                       </TableCell>
-                      <TableCell className="py-2.5 text-sm text-gray-600">{s.cargoSereno?.descripcion || '-'}</TableCell>
+                      <TableCell className="py-2.5 text-sm text-gray-600 dark:text-gray-400">{s.cargoSereno?.descripcion || '-'}</TableCell>
                       <TableCell className="py-2.5">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.habilitado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.habilitado ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'}`}>
                           {s.habilitado ? 'Activo' : 'Inactivo'}
                         </span>
                       </TableCell>
@@ -158,14 +158,14 @@ export default function SerenosPage() {
                           <button
                             title="Editar"
                             onClick={() => openEdit(s)}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             title={s.habilitado ? 'Deshabilitar' : 'Habilitar'}
                             onClick={() => handleToggle(s.id)}
-                            className={`inline-flex items-center justify-center w-8 h-8 rounded transition-colors ${s.habilitado ? 'text-yellow-600 hover:bg-yellow-50' : 'text-green-600 hover:bg-green-50'}`}
+                            className={`inline-flex items-center justify-center w-8 h-8 rounded transition-colors ${s.habilitado ? 'text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20' : 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'}`}
                           >
                             {s.habilitado ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
                           </button>
@@ -181,33 +181,33 @@ export default function SerenosPage() {
 
         {/* ── Paginación ── */}
         {!isLoading && total > 0 && (
-          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 bg-white">
+          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500 whitespace-nowrap">Filas por página:</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">Filas por página:</span>
               <select
                 value={limit}
                 onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
-                className="h-7 text-sm border border-gray-300 rounded px-1 bg-white focus:outline-none"
+                className="h-7 text-sm border border-gray-300 dark:border-gray-600 rounded px-1 bg-white dark:bg-gray-800 dark:text-gray-300 focus:outline-none"
               >
                 {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <span className="text-sm text-gray-500 whitespace-nowrap">{startRow}–{endRow} de {total}</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{startRow}–{endRow} de {total}</span>
             <div className="flex items-center gap-0.5">
               <button disabled={page <= 1} onClick={() => setPage(1)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronsLeft className="h-4 w-4" />
               </button>
               <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronRight className="h-4 w-4" />
               </button>
               <button disabled={page >= totalPages} onClick={() => setPage(totalPages)}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronsRight className="h-4 w-4" />
               </button>
             </div>

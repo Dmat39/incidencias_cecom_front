@@ -36,26 +36,24 @@ export function ComboboxSearch({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-            type="button"
-            disabled={disabled}
-            style={{ maxWidth: '100%', width: '100%' }}
-            className={cn(
-                'flex h-9 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm',
-                'focus:outline-none focus:ring-0',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                !selected && 'text-muted-foreground',
-                className
-            )}
-            >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0, marginRight: '8px' }}>
-                {selected ? selected.label : placeholder}
-            </span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-            </button>
+      {/* PopoverTrigger de Base UI ya renderiza un <button>, no usar asChild */}
+      <PopoverTrigger
+        disabled={disabled}
+        className={cn(
+          'flex h-9 w-full items-center gap-2 overflow-hidden rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm',
+          'focus:outline-none focus:ring-1 focus:ring-ring',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+          open && 'ring-1 ring-ring',
+          className
+        )}
+      >
+        <span className={cn('flex-1 min-w-0 truncate text-left', !selected && 'text-muted-foreground')}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      {/* Base UI usa --anchor-width, no --radix-popover-trigger-width */}
+      <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
         <Command>
           <CommandInput
             placeholder={searchPlaceholder}

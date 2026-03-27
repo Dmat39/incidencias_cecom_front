@@ -47,29 +47,29 @@ export default function DashboardPage() {
       {/* Filtro de fechas */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">Desde</label>
+          <label className="text-sm text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">Desde</label>
           <input
             type="date"
             value={fechaInicio}
             max={fechaFin}
             onChange={(e) => setFechaInicio(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">Hasta</label>
+          <label className="text-sm text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">Hasta</label>
           <input
             type="date"
             value={fechaFin}
             min={fechaInicio}
             max={TODAY}
             onChange={(e) => setFechaFin(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
         <button
           onClick={() => { setFechaInicio(getWeekStart()); setFechaFin(TODAY); }}
-          className="text-xs text-green-600 hover:underline font-medium"
+          className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium"
         >
           Esta semana
         </button>
@@ -81,7 +81,7 @@ export default function DashboardPage() {
         {/* Donut chart */}
         <Card className="border border-gray-200 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-gray-700">Distribución por Estado (Hoy)</CardTitle>
+            <CardTitle className="text-base font-semibold text-gray-700 dark:text-gray-300">Distribución por Estado (Hoy)</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -113,10 +113,10 @@ export default function DashboardPage() {
         {/* Recent incidents */}
         <Card className="border border-gray-200 shadow-sm">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-semibold text-gray-700">Últimas Incidencias</CardTitle>
+            <CardTitle className="text-base font-semibold text-gray-700 dark:text-gray-300">Últimas Incidencias</CardTitle>
             <button
               onClick={() => router.push('/incidencias')}
-              className="text-xs text-green-600 hover:underline font-medium"
+              className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium"
             >
               Ver todas →
             </button>
@@ -132,10 +132,10 @@ export default function DashboardPage() {
                   <div
                     key={inc.id}
                     onClick={() => router.push(`/incidencias/${inc.id}`)}
-                    className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer border-l-4 border-l-gray-200 bg-white border border-gray-100"
+                    className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-l-4 border-l-gray-200 dark:border-l-gray-600 bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                         {inc.codigoIncidencia || `#${inc.id}`}
                       </p>
                       <p className="text-xs text-gray-400 truncate">

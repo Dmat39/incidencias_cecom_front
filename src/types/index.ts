@@ -209,6 +209,7 @@ export interface CreateIncidenciaDto {
   tipoReportanteId?: number;
   nombreReportante?: string;
   telefonoReportante?: string;
+  reportanteFuente?: 'GESTIONATE' | 'LOCAL' | 'MANUAL';
   direccion?: string;
   latitud?: number;
   longitud?: number;

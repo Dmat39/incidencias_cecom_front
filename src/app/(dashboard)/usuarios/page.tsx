@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import api from '@/lib/api';
@@ -9,12 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Pencil, Eye, EyeOff, Loader2 } from 'lucide-react';
+import {
+  Plus, Pencil, Eye, EyeOff, Loader2, Search,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { Usuario, CreateUsuarioDto, ApiResponse, Sereno } from '@/types';
+import type { Usuario, CreateUsuarioDto, Sereno } from '@/types';
 
 const ROLES = ['admin', 'validador', 'operador', 'supervisor'];
+const PAGE_SIZES = [10, 20, 50, 100];
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
@@ -34,7 +37,7 @@ const generateUsername = (nombres: string, apellidoPaterno: string, apellidoMate
 };
 
 const generatePassword = (nombres: string, apellidoPaterno: string) => {
-  const pat  = normalize(apellidoPaterno).split(' ')[0];
+  const pat   = normalize(apellidoPaterno).split(' ')[0];
   const first = normalize(nombres).split(' ')[0];
   const digits = Math.floor(1000 + Math.random() * 9000);
   const cap = pat.charAt(0).toUpperCase() + pat.slice(1);
@@ -49,25 +52,19 @@ const generateEmail = (nombres: string, apellidoPaterno: string) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-function useUsuarios() {
-  return useQuery({
-    queryKey: ['usuarios'],
-    queryFn: async () => {
-      const { data } = await api.get<ApiResponse<Usuario[]>>('/usuarios');
-      return data.data ?? [];
-    },
-  });
-}
-
 const EMPTY: CreateUsuarioDto = { username: '', email: '', password: '', nombres: '', apellidos: '', roles: [] };
 
 export default function UsuariosPage() {
   const qc = useQueryClient();
-  const { data: usuarios, isLoading } = useUsuarios();
 
-  const [open, setOpen]       = useState(false);
-  const [editing, setEditing] = useState<Usuario | null>(null);
-  const [form, setForm]       = useState<CreateUsuarioDto>(EMPTY);
+  const [search, setSearch]             = useState('');
+  const [debouncedSearch, setDebounced] = useState('');
+  const [page, setPage]                 = useState(1);
+  const [limit, setLimit]               = useState(20);
+
+  const [open, setOpen]         = useState(false);
+  const [editing, setEditing]   = useState<Usuario | null>(null);
+  const [form, setForm]         = useState<CreateUsuarioDto>(EMPTY);
 
   // DNI lookup state (solo para creación)
   const [dni, setDni]               = useState('');
@@ -75,6 +72,28 @@ export default function UsuariosPage() {
   const [searching, setSearching]   = useState(false);
   const [sereno, setSereno]         = useState<Sereno | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Debounce búsqueda → resetea a página 1
+  useEffect(() => {
+    const t = setTimeout(() => { setDebounced(search); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: paginado, isLoading } = useQuery({
+    queryKey: ['usuarios', debouncedSearch, page, limit],
+    queryFn: async () => {
+      const { data } = await api.get('/usuarios', {
+        params: { search: debouncedSearch || undefined, page, limit },
+      });
+      return data.data;
+    },
+  });
+
+  const usuarios    = paginado?.data    ?? [];
+  const total       = paginado?.meta?.total      ?? 0;
+  const totalPages  = paginado?.meta?.totalPages ?? 1;
+  const startRow    = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endRow      = Math.min(page * limit, total);
 
   // ── mutations ───────────────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -93,6 +112,8 @@ export default function UsuariosPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
   });
 
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
   // ── handlers ────────────────────────────────────────────────────────────────
   function openCreate() {
     setEditing(null);
@@ -107,10 +128,10 @@ export default function UsuariosPage() {
   function openEdit(u: Usuario) {
     setEditing(u);
     setForm({
-      username: u.username || '',
-      email:    u.email    || '',
-      password: '',
-      nombres:  u.nombres  || '',
+      username:  u.username  || '',
+      email:     u.email     || '',
+      password:  '',
+      nombres:   u.nombres   || '',
       apellidos: u.apellidos || '',
       roles: u.roles?.map((r) => r.rol.nombre).filter(Boolean) || [],
     });
@@ -186,68 +207,153 @@ export default function UsuariosPage() {
     }
   }
 
-  const readonlyInputClass = 'bg-gray-100 text-gray-600 cursor-default';
+  const readonlyInputClass = 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 cursor-default';
 
   // ── render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
+    <div className="space-y-3">
+
+      {/* Encabezado */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Usuarios</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Gestión de usuarios del sistema</p>
+        </div>
         <Button onClick={openCreate} className="bg-green-600 hover:bg-green-700">
-          <Plus className="h-4 w-4 mr-1" /> Nuevo usuario
+          <Plus className="h-4 w-4 mr-1.5" /> Nuevo usuario
         </Button>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-green-600 hover:bg-green-600">
-              <TableHead className="text-white font-semibold">Usuario</TableHead>
-              <TableHead className="text-white font-semibold">Nombre</TableHead>
-              <TableHead className="text-white font-semibold">Email</TableHead>
-              <TableHead className="text-white font-semibold">Roles</TableHead>
-              <TableHead className="text-white font-semibold">Estado</TableHead>
-              <TableHead className="text-white font-semibold text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {[1,2,3,4,5,6].map((j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}
-                </TableRow>
-              ))
-            ) : (usuarios || []).length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-10 text-gray-400">Sin usuarios</TableCell></TableRow>
-            ) : (
-              (usuarios || []).map((u: Usuario) => (
-                <TableRow key={u.id} className="hover:bg-gray-50">
-                  <TableCell className="font-medium text-sm">{u.username}</TableCell>
-                  <TableCell className="text-sm text-gray-600">{[u.nombres, u.apellidos].filter(Boolean).join(' ') || '-'}</TableCell>
-                  <TableCell className="text-sm text-gray-500">{u.email}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(u.roles || []).map((r) => (
-                        <span key={r.rol.nombre} className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">{r.rol.nombre}</span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.habilitado !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {u.habilitado !== false ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(u)} className="h-8 w-8 text-blue-600 hover:bg-blue-50">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      {/* Búsqueda */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Buscar por nombre, usuario o email..."
+            className="pl-9 h-9 text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
+      {/* Tabla */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm flex flex-col dark:bg-gray-900">
+        <div className="overflow-x-auto rounded-t-lg">
+          <div className="overflow-y-auto min-w-[700px]" style={{ height: 'calc(100vh - 260px)' }}>
+            <Table>
+              <TableHeader className="sticky top-0 z-10">
+                <TableRow className="bg-green-600 hover:bg-green-600">
+                  {[
+                    { label: 'Usuario',        cls: 'min-w-[130px]' },
+                    { label: 'Nombre completo',cls: 'min-w-[200px]' },
+                    { label: 'Email',          cls: 'min-w-[200px]' },
+                    { label: 'Roles',          cls: 'min-w-[160px]' },
+                    { label: 'Estado',         cls: 'min-w-[90px]'  },
+                    { label: 'Acciones',       cls: 'min-w-[80px]'  },
+                  ].map(({ label, cls }) => (
+                    <TableHead key={label} className={`text-white font-semibold text-sm whitespace-nowrap bg-green-600 ${cls}`}>
+                      {label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/40'}>
+                      {[1,2,3,4,5,6].map((j) => (
+                        <TableCell key={j}><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : usuarios.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
+                      {search ? 'No hay resultados para la búsqueda.' : 'Sin usuarios registrados.'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  usuarios.map((u: Usuario, idx: number) => (
+                    <TableRow
+                      key={u.id}
+                      className={`transition-colors hover:bg-green-50 dark:hover:bg-green-900/15 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}
+                    >
+                      <TableCell className="py-2.5 font-medium text-sm text-gray-800 dark:text-gray-100">{u.username}</TableCell>
+                      <TableCell className="py-2.5 text-sm text-gray-700 dark:text-gray-200">
+                        {[u.nombres, u.apellidos].filter(Boolean).join(' ') || '-'}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-sm text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={u.email || ''}>
+                        {u.email || '-'}
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="flex flex-wrap gap-1">
+                          {(u.roles || []).map((r) => (
+                            <span key={r.rol.nombre} className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded">
+                              {r.rol.nombre}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.habilitado !== false ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'}`}>
+                          {u.habilitado !== false ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <button
+                          title="Editar"
+                          onClick={() => openEdit(u)}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+
+        {/* Paginación */}
+        {!isLoading && total > 0 && (
+          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">Filas por página:</span>
+              <select
+                value={limit}
+                onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                className="h-7 text-sm border border-gray-300 dark:border-gray-600 rounded px-1 bg-white dark:bg-gray-800 dark:text-gray-300 focus:outline-none"
+              >
+                {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{startRow}–{endRow} de {total}</span>
+            <div className="flex items-center gap-0.5">
+              <button disabled={page <= 1} onClick={() => setPage(1)}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronsLeft className="h-4 w-4" />
+              </button>
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button disabled={page >= totalPages} onClick={() => setPage(totalPages)}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronsRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal crear/editar */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -255,7 +361,7 @@ export default function UsuariosPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            {/* ── Creación: validar DNI ── */}
+            {/* Creación: buscar DNI */}
             {!editing && (
               <div className="space-y-1">
                 <Label>DNI <span className="text-red-500">*</span></Label>
@@ -282,7 +388,7 @@ export default function UsuariosPage() {
               </div>
             )}
 
-            {/* ── Datos del sereno (solo creación, readonly) ── */}
+            {/* Datos readonly (solo creación) */}
             {!editing && sereno && (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -317,7 +423,7 @@ export default function UsuariosPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -326,7 +432,7 @@ export default function UsuariosPage() {
               </>
             )}
 
-            {/* ── Edición: campos editables ── */}
+            {/* Campos editables (solo edición) */}
             {editing && (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -356,7 +462,7 @@ export default function UsuariosPage() {
               </>
             )}
 
-            {/* ── Roles (siempre visible) ── */}
+            {/* Roles */}
             {(editing || sereno) && (
               <div className="space-y-2">
                 <Label>Roles</Label>
@@ -369,7 +475,7 @@ export default function UsuariosPage() {
                       className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
                         form.roles?.includes(role)
                           ? 'bg-green-600 text-white border-green-600'
-                          : 'bg-white text-gray-600 border-gray-300 hover:border-green-400'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-green-400'
                       }`}
                     >
                       {role}
@@ -384,10 +490,10 @@ export default function UsuariosPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button
               onClick={handleSubmit}
-              disabled={!editing && !sereno}
+              disabled={isSaving || (!editing && !sereno)}
               className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
             >
-              {editing ? 'Actualizar' : 'Crear'}
+              {isSaving ? 'Guardando...' : editing ? 'Actualizar' : 'Crear'}
             </Button>
           </DialogFooter>
         </DialogContent>

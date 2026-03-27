@@ -73,8 +73,8 @@ export default function IncidenciasPage() {
       {/* ── Encabezado ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Incidencias</h1>
-          <p className="text-sm text-gray-500">Gestión y seguimiento de incidencias en tiempo real</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Incidencias</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Gestión y seguimiento de incidencias en tiempo real</p>
         </div>
         <Button onClick={() => router.push('/incidencias/nueva')} className="bg-green-600 hover:bg-green-700">
           <Plus className="h-4 w-4 mr-1.5" /> Nueva incidencia
@@ -95,7 +95,7 @@ export default function IncidenciasPage() {
         <button
           onClick={() => setShowFilters((v) => !v)}
           className={`flex items-center gap-1.5 px-3 h-9 rounded border text-sm font-medium transition-colors
-            ${showFilters ? 'bg-green-50 border-green-300 text-green-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+            ${showFilters ? 'bg-green-50 dark:bg-green-900/25 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
         >
           <Filter className="h-4 w-4" /> Filtros
         </button>
@@ -103,17 +103,17 @@ export default function IncidenciasPage() {
 
       {/* ── Filtros expandibles ── */}
       {showFilters && (
-        <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 border border-gray-200 rounded-lg">
+        <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
           <div>
-            <label className="text-xs text-gray-500 block mb-1 font-medium">Desde</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Desde</label>
             <Input type="date" className="h-8 text-sm w-36" onChange={(e) => updateFilter('fechaInicio', e.target.value || undefined)} />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1 font-medium">Hasta</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Hasta</label>
             <Input type="date" className="h-8 text-sm w-36" onChange={(e) => updateFilter('fechaFin', e.target.value || undefined)} />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1 font-medium">Estado</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Estado</label>
             <Select onValueChange={(v) => updateFilter('situacionId', v === 'all' ? undefined : Number(v))}>
               <SelectTrigger className="h-8 text-sm w-40"><SelectValue placeholder="Todos" /></SelectTrigger>
               <SelectContent>
@@ -123,7 +123,7 @@ export default function IncidenciasPage() {
             </Select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1 font-medium">Unidad</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Unidad</label>
             <Select onValueChange={(v) => updateFilter('unidadId', v === 'all' ? undefined : Number(v))}>
               <SelectTrigger className="h-8 text-sm w-40"><SelectValue placeholder="Todas" /></SelectTrigger>
               <SelectContent>
@@ -133,7 +133,7 @@ export default function IncidenciasPage() {
             </Select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1 font-medium">Jurisdicción</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Jurisdicción</label>
             <Select onValueChange={(v) => updateFilter('jurisdiccionId', v === 'all' ? undefined : Number(v))}>
               <SelectTrigger className="h-8 text-sm w-40"><SelectValue placeholder="Todas" /></SelectTrigger>
               <SelectContent>
@@ -144,7 +144,7 @@ export default function IncidenciasPage() {
           </div>
           <button
             onClick={() => { setFilters({ page: 1, limit }); setSearchText(''); }}
-            className="h-8 px-3 text-xs border border-gray-300 rounded bg-white hover:bg-gray-100 text-gray-500"
+            className="h-8 px-3 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
           >
             Limpiar
           </button>
@@ -152,7 +152,7 @@ export default function IncidenciasPage() {
       )}
 
       {/* ── Tabla ── */}
-      <div className="border rounded-lg shadow-sm flex flex-col">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm flex flex-col dark:bg-gray-900">
         <div className="overflow-y-auto rounded-t-lg" style={{ height: 'calc(100vh - 290px)' }}>
           <Table className="w-full table-fixed">
 
@@ -178,9 +178,9 @@ export default function IncidenciasPage() {
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
-                  <TableRow key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <TableRow key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/40'}>
                     {[1,2,3,4,5,6].map((j) => (
-                      <TableCell key={j}><div className="h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
+                      <TableCell key={j}><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></TableCell>
                     ))}
                   </TableRow>
                 ))
@@ -194,7 +194,7 @@ export default function IncidenciasPage() {
                 rows.map((inc: Incidencia, idx: number) => (
                   <TableRow
                     key={inc.id}
-                    className={`cursor-pointer transition-colors hover:bg-green-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}`}
+                    className={`cursor-pointer transition-colors hover:bg-green-50 dark:hover:bg-green-900/15 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}
                     onClick={() => router.push(`/incidencias/${inc.id}`)}
                   >
                     <TableCell className="py-2.5">
@@ -203,21 +203,21 @@ export default function IncidenciasPage() {
                           className="inline-block w-2 h-2 rounded-full flex-shrink-0"
                           style={{ backgroundColor: getEstadoDotColor(inc.situacion?.descripcion) }}
                         />
-                        <span className="font-mono text-sm font-semibold text-gray-800 whitespace-nowrap">
+                        <span className="font-mono text-sm font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">
                           {inc.codigoIncidencia || `#${inc.id}`}
                         </span>
                       </div>
                     </TableCell>
 
-                    <TableCell className="text-sm text-gray-600 whitespace-nowrap py-2.5">
+                    <TableCell className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap py-2.5">
                       {formatDate(inc.registradoEn, 'dd/MM/yy HH:mm')}
                     </TableCell>
 
-                    <TableCell className="text-sm text-gray-600 whitespace-nowrap py-2.5">
+                    <TableCell className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap py-2.5">
                       {inc.unidad?.descripcion || '-'}
                     </TableCell>
 
-                    <TableCell className="text-sm text-gray-700 py-2.5 max-w-0">
+                    <TableCell className="text-sm text-gray-700 dark:text-gray-300 py-2.5 max-w-0">
                       <p className="truncate" title={
                         inc.tipoCaso?.codigo
                           ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}`
@@ -247,33 +247,33 @@ export default function IncidenciasPage() {
 
         {/* Paginación */}
         {!isLoading && total > 0 && (
-          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 bg-white">
+          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500 whitespace-nowrap">Filas por página:</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">Filas por página:</span>
               <select
                 value={limit}
                 onChange={(e) => setFilters((f) => ({ ...f, limit: Number(e.target.value), page: 1 }))}
-                className="h-7 text-sm border border-gray-300 rounded px-1 bg-white focus:outline-none"
+                className="h-7 text-sm border border-gray-300 dark:border-gray-600 rounded px-1 bg-white dark:bg-gray-800 dark:text-gray-300 focus:outline-none"
               >
                 {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <span className="text-sm text-gray-500 whitespace-nowrap">{startRow}–{endRow} de {total}</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{startRow}–{endRow} de {total}</span>
             <div className="flex items-center gap-0.5">
               <button disabled={currentPage <= 1} onClick={() => setFilters((f) => ({ ...f, page: 1 }))}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed dark:text-gray-400">
                 <ChevronsLeft className="h-4 w-4" />
               </button>
               <button disabled={currentPage <= 1} onClick={() => setFilters((f) => ({ ...f, page: (f.page||1) - 1 }))}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed dark:text-gray-400">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button disabled={currentPage >= totalPages} onClick={() => setFilters((f) => ({ ...f, page: (f.page||1) + 1 }))}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed dark:text-gray-400">
                 <ChevronRight className="h-4 w-4" />
               </button>
               <button disabled={currentPage >= totalPages} onClick={() => setFilters((f) => ({ ...f, page: totalPages }))}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed dark:text-gray-400">
                 <ChevronsRight className="h-4 w-4" />
               </button>
             </div>
