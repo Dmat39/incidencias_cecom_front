@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,14 +14,21 @@ const SVI_API = process.env.NEXT_PUBLIC_SVI_API_URL || 'http://localhost:3008/ap
 
 interface Props {
   open: boolean;
+  onClose?: () => void;
 }
 
-export default function SviLoginModal({ open }: Props) {
+export default function SviLoginModal({ open, onClose }: Props) {
   const { login } = useSviAuthStore();
+  const router = useRouter();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
+
+  function handleClose() {
+    if (onClose) onClose();
+    else router.push('/dashboard');
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,7 +55,7 @@ export default function SviLoginModal({ open }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
       <DialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <div className="flex items-center gap-2">
