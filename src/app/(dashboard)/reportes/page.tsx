@@ -42,7 +42,7 @@ export default function ReportesPage() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      const fecha = new Date().toISOString().split('T')[0];
+      const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Lima' });
       link.setAttribute('download', `incidencias_${fecha}.xlsx`);
       document.body.appendChild(link);
       link.click();
@@ -159,9 +159,9 @@ export default function ReportesPage() {
         </CardContent>
       </Card>
 
-      <Card className="border border-gray-100 bg-green-50/40">
-        <CardContent className="p-4 text-sm text-gray-600 space-y-1">
-          <p className="font-medium text-green-700">Información del reporte:</p>
+      <Card className="border border-gray-100 dark:border-gray-700 bg-green-50/40 dark:bg-green-900/10">
+        <CardContent className="p-4 text-sm text-gray-600 dark:text-gray-400 space-y-1">
+          <p className="font-medium text-green-700 dark:text-green-400">Información del reporte:</p>
           <ul className="list-disc list-inside space-y-0.5 text-xs">
             <li>Incluye código, fecha, unidad, tipo, dirección y estado de cada incidencia</li>
             <li>Si no se selecciona rango de fechas, se incluyen todas las incidencias</li>

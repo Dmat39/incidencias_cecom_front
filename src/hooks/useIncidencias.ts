@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type {
   Incidencia,
@@ -26,6 +26,7 @@ export function useIncidencias(filters: FilterIncidenciaDto = {}) {
       const { data } = await api.get<ApiResponse<PaginatedResponse<Incidencia>>>('/incidencias', { params });
       return data.data;
     },
+    placeholderData: keepPreviousData,
   });
 }
 

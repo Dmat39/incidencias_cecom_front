@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useIncidencias } from '@/hooks/useIncidencias';
 import { useSocket } from '@/hooks/useSocket';
-import { useEstadoIncidencias, useUnidades, useJurisdicciones } from '@/hooks/useCatalogos';
+import { useEstadoIncidencias, useUnidades, useJurisdicciones, useSeveridades } from '@/hooks/useCatalogos';
 import EstadoBadge, { getEstadoDotColor } from '@/components/incidencias/EstadoBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,17 +21,39 @@ import type { FilterIncidenciaDto, Incidencia } from '@/types';
 
 const PAGE_SIZES = [10, 20, 50, 100];
 
+function SeveridadBadge({ descripcion }: { descripcion?: string }) {
+  if (!descripcion) return <span className="text-gray-400 text-xs">-</span>;
+  const d = descripcion.toLowerCase();
+  let cls = 'text-xs font-semibold px-2 py-0.5 rounded-full ';
+  if (d.includes('alt'))      cls += 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+  else if (d.includes('med')) cls += 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+  else if (d.includes('baj')) cls += 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+  else                        cls += 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400';
+  return <span className={cls}>{descripcion}</span>;
+}
+
 export default function IncidenciasPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [filters, setFilters] = useState<FilterIncidenciaDto>({ page: 1, limit: 20 });
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
 
-  const { data, isLoading } = useIncidencias(filters);
+  // Debounce: envía el texto al backend después de 400ms sin escribir
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters((f) => ({ ...f, search: searchText.trim() || undefined, page: 1 }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  const { data, isLoading, isFetching } = useIncidencias(filters);
   const { data: estados } = useEstadoIncidencias();
   const { data: unidades } = useUnidades();
   const { data: jurisdicciones } = useJurisdicciones();
+  const { data: severidades } = useSeveridades();
 
   useSocket({
     'nueva-incidencia': (inc: Incidencia) => {
@@ -55,17 +77,7 @@ export default function IncidenciasPage() {
   const startRow    = total === 0 ? 0 : (currentPage - 1) * limit + 1;
   const endRow      = Math.min(currentPage * limit, total);
 
-  const rows = searchText.trim()
-    ? incidencias.filter((inc: Incidencia) => {
-        const q = searchText.toLowerCase();
-        return (
-          (inc.codigoIncidencia || '').toLowerCase().includes(q) ||
-          (inc.direccion || '').toLowerCase().includes(q) ||
-          (inc.tipoCaso?.descripcion || '').toLowerCase().includes(q) ||
-          (inc.unidad?.descripcion || '').toLowerCase().includes(q)
-        );
-      })
-    : incidencias;
+  const rows = incidencias;
 
   return (
     <div className="space-y-3">
@@ -106,11 +118,29 @@ export default function IncidenciasPage() {
         <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Desde</label>
-            <Input type="date" className="h-8 text-sm w-36" onChange={(e) => updateFilter('fechaInicio', e.target.value || undefined)} />
+            <Input
+              type="date"
+              className="h-8 text-sm w-36"
+              value={fechaInicio}
+              max={fechaFin || undefined}
+              onChange={(e) => {
+                setFechaInicio(e.target.value);
+                updateFilter('fechaInicio', e.target.value || undefined);
+              }}
+            />
           </div>
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Hasta</label>
-            <Input type="date" className="h-8 text-sm w-36" onChange={(e) => updateFilter('fechaFin', e.target.value || undefined)} />
+            <Input
+              type="date"
+              className="h-8 text-sm w-36"
+              value={fechaFin}
+              min={fechaInicio || undefined}
+              onChange={(e) => {
+                setFechaFin(e.target.value);
+                updateFilter('fechaFin', e.target.value || undefined);
+              }}
+            />
           </div>
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Estado</label>
@@ -142,8 +172,18 @@ export default function IncidenciasPage() {
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Severidad</label>
+            <Select onValueChange={(v) => updateFilter('severidadId', v === 'all' ? undefined : Number(v))}>
+              <SelectTrigger className="h-8 text-sm w-36"><SelectValue placeholder="Todas" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {severidades?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <button
-            onClick={() => { setFilters({ page: 1, limit }); setSearchText(''); }}
+            onClick={() => { setFilters({ page: 1, limit, search: undefined }); setSearchText(''); setFechaInicio(''); setFechaFin(''); }}
             className="h-8 px-3 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
           >
             Limpiar
@@ -159,15 +199,16 @@ export default function IncidenciasPage() {
             <colgroup>
               <col style={{ width: '110px' }} />  {/* Código */}
               <col style={{ width: '100px' }} />  {/* Fecha/Hora */}
-              <col style={{ width: '100px' }} />   {/* Unidad */}
-              <col style={{ width: '470px' }}/>   {/* Tipo de Caso */}
-              <col style={{ width: '350px' }} />  {/* Dirección */}
-              <col style={{ width: '85px' }} />  {/* Estado */}
+              <col style={{ width: '100px' }} />  {/* Unidad */}
+              <col style={{ width: '370px' }} />  {/* Tipo de Caso */}
+              <col style={{ width: '280px' }} />  {/* Dirección */}
+              <col style={{ width: '95px' }} />   {/* Severidad */}
+              <col style={{ width: '85px' }} />   {/* Estado */}
             </colgroup>
 
             <TableHeader className="sticky top-0 z-10">
               <TableRow className="bg-green-600 hover:bg-green-600">
-                {['Código', 'Fecha/Hora', 'Unidad', 'Tipo de Caso', 'Dirección', 'Estado'].map((label) => (
+                {['Código', 'Fecha/Hora', 'Unidad', 'Tipo de Caso', 'Dirección', 'Severidad', 'Estado'].map((label) => (
                   <TableHead key={label} className="text-white font-semibold text-sm whitespace-nowrap bg-green-600">
                     {label}
                   </TableHead>
@@ -179,14 +220,14 @@ export default function IncidenciasPage() {
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/40'}>
-                    {[1,2,3,4,5,6].map((j) => (
+                    {[1,2,3,4,5,6,7].map((j) => (
                       <TableCell key={j}><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-gray-400 text-sm">
+                  <TableCell colSpan={7} className="text-center py-12 text-gray-400 text-sm">
                     {searchText ? 'No hay resultados para la búsqueda.' : 'No hay datos disponibles.'}
                   </TableCell>
                 </TableRow>
@@ -236,6 +277,10 @@ export default function IncidenciasPage() {
                     </TableCell>
 
                     <TableCell className="py-2.5 whitespace-nowrap">
+                      <SeveridadBadge descripcion={inc.severidad?.descripcion} />
+                    </TableCell>
+
+                    <TableCell className="py-2.5 whitespace-nowrap">
                       <EstadoBadge estado={inc.situacion?.descripcion} />
                     </TableCell>
                   </TableRow>
@@ -247,7 +292,13 @@ export default function IncidenciasPage() {
 
         {/* Paginación */}
         {!isLoading && total > 0 && (
-          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="flex items-center justify-end gap-4 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 relative">
+            {isFetching && (
+              <span className="absolute left-4 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 border-2 border-gray-300 dark:border-gray-600 border-t-green-500 rounded-full animate-spin" />
+                Cargando...
+              </span>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">Filas por página:</span>
               <select

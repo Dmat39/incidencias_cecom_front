@@ -18,6 +18,7 @@ import {
   History,
   ChevronDown,
   LogOut,
+  BarChart2,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useState } from 'react';
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/usuarios',    label: 'Usuarios',     icon: Users,           modulo: 'usuarios' },
   { href: '/catalogos',   label: 'Catálogos',    icon: BookOpen,        modulo: 'catalogos' },
   { href: '/reportes',    label: 'Reportes',     icon: FileBarChart,    modulo: 'reportes' },
+  { href: '/metricas',   label: 'Métricas',     icon: BarChart2,       modulo: 'metricas' },
   { href: '/auditoria',   label: 'Auditoría',    icon: ClipboardList,   modulo: 'auditoria' },
 ];
 

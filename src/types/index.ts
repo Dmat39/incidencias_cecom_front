@@ -238,11 +238,13 @@ export interface UpdateAtencionDto {
 }
 
 export interface FilterIncidenciaDto {
+  search?: string;
   fechaInicio?: string;
   fechaFin?: string;
   situacionId?: number;
   unidadId?: number;
   jurisdiccionId?: number;
+  severidadId?: number;
   page?: number;
   limit?: number;
 }

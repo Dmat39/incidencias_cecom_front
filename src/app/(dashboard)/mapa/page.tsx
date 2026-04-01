@@ -19,11 +19,12 @@ const LAYERS = [
 ];
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Lima' });
 }
 
 function weekStartStr() {
-  const d = new Date();
+  const today = todayStr();
+  const d = new Date(today + 'T12:00:00Z');
   d.setDate(d.getDate() - 6);
   return d.toISOString().split('T')[0];
 }
