@@ -162,8 +162,9 @@ export default function NuevaIncidenciaPage() {
     let inc: Incidencia;
     try {
       inc = await createMutation.mutateAsync(payload);
-    } catch {
-      toast.error('Error al registrar la incidencia');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Error al registrar la incidencia';
+      toast.error(msg);
       return;
     }
 
@@ -209,6 +210,7 @@ export default function NuevaIncidenciaPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <fieldset disabled={createMutation.isPending} className="contents">
 
         {/* Clasificación */}
         <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -311,7 +313,7 @@ export default function NuevaIncidenciaPage() {
               <span className="flex items-center gap-1.5">
                 Severidad
                 {severidadAutoFilled && (
-                  <span className="text-xs font-normal text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                  <span className="text-xs font-normal text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-1.5 py-0.5 rounded">
                     auto
                   </span>
                 )}
@@ -321,7 +323,7 @@ export default function NuevaIncidenciaPage() {
                 <Select
                   value={field.value ? String(field.value) : undefined}
                   onValueChange={(v) => { field.onChange(Number(v)); setSeveridadAutoFilled(false); }}>
-                  <SelectTrigger className={`h-9 text-sm ${severidadAutoFilled ? 'border-green-400 bg-green-50' : ''}`}>
+                  <SelectTrigger className={`h-9 text-sm ${severidadAutoFilled ? 'border-green-400 bg-green-50 dark:bg-green-900/30 dark:border-green-500' : ''}`}>
                     <SelectValue placeholder="Seleccionar..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -706,7 +708,7 @@ export default function NuevaIncidenciaPage() {
               <span className="flex items-center gap-1.5">
                 Jurisdicción
                 {jurisdiccionAutoFilled && (
-                  <span className="text-xs font-normal text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                  <span className="text-xs font-normal text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
                     auto
                   </span>
                 )}
@@ -716,7 +718,7 @@ export default function NuevaIncidenciaPage() {
                 <Select
                   value={field.value ? String(field.value) : undefined}
                   onValueChange={(v) => { field.onChange(Number(v)); setJurisdiccionAutoFilled(false); }}>
-                  <SelectTrigger className={`h-9 text-sm ${jurisdiccionAutoFilled ? 'border-blue-400 bg-blue-50' : ''}`}>
+                  <SelectTrigger className={`h-9 text-sm ${jurisdiccionAutoFilled ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-500' : ''}`}>
                     <SelectValue placeholder="Seleccionar..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -761,7 +763,7 @@ export default function NuevaIncidenciaPage() {
             )}
           </Button>
         </div>
-
+        </fieldset>
       </form>
     </div>
   );
