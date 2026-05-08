@@ -52,7 +52,7 @@ api.interceptors.response.use(
 
       if (!refreshToken) {
         isRefreshing = false;
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           window.location.href = '/login';

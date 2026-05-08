@@ -163,7 +163,7 @@ export default function ReportesPage() {
         <CardContent className="p-4 text-sm text-gray-600 dark:text-gray-400 space-y-1">
           <p className="font-medium text-green-700 dark:text-green-400">Información del reporte:</p>
           <ul className="list-disc list-inside space-y-0.5 text-xs">
-            <li>Incluye código, fecha, unidad, tipo, dirección y estado de cada incidencia</li>
+            <li>Incluye código, fecha, unidad, tipo, dirección, coordenadas (lat/long) y estado de cada incidencia</li>
             <li>Si no se selecciona rango de fechas, se incluyen todas las incidencias</li>
             <li>El archivo se descarga en formato .xlsx compatible con Excel</li>
           </ul>
