@@ -17,6 +17,13 @@ export interface UsuarioAuth {
   nombres?: string;
   apellidos?: string;
   roles: string[];
+  jurisdiccionesAsignadas?: number[];
+}
+
+export interface Jurisdiccion {
+  id: number;
+  nombre: string | null;
+  codigo?: string | null;
 }
 
 export interface AuthState {

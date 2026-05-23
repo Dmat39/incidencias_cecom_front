@@ -11,13 +11,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Plus, Pencil, Eye, EyeOff, Loader2, Search,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MapPin,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { Usuario, CreateUsuarioDto, Sereno } from '@/types';
+import type { Usuario, CreateUsuarioDto, Sereno, Jurisdiccion } from '@/types';
 
 const ROLES = ['admin', 'validador', 'operador', 'supervisor'];
 const PAGE_SIZES = [10, 20, 50, 100];
+
+function useJurisdicciones() {
+  return useQuery<Jurisdiccion[]>({
+    queryKey: ['catalogos', 'jurisdicciones'],
+    queryFn: async () => {
+      const { data } = await api.get('/catalogos/jurisdicciones');
+      return data.data ?? data;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
@@ -62,9 +73,12 @@ export default function UsuariosPage() {
   const [page, setPage]                 = useState(1);
   const [limit, setLimit]               = useState(20);
 
-  const [open, setOpen]         = useState(false);
-  const [editing, setEditing]   = useState<Usuario | null>(null);
-  const [form, setForm]         = useState<CreateUsuarioDto>(EMPTY);
+  const [open, setOpen]           = useState(false);
+  const [editing, setEditing]     = useState<Usuario | null>(null);
+  const [form, setForm]           = useState<CreateUsuarioDto>(EMPTY);
+  const [jurIds, setJurIds]       = useState<number[]>([]);
+
+  const { data: jurisdicciones = [] } = useJurisdicciones();
 
   // DNI lookup state (solo para creación)
   const [dni, setDni]               = useState('');
@@ -112,7 +126,14 @@ export default function UsuariosPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
   });
 
-  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const jurMutation = useMutation({
+    mutationFn: async ({ id, ids }: { id: number; ids: number[] }) => {
+      await api.patch(`/usuarios/${id}/jurisdicciones`, { jurisdiccionIds: ids });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
+  });
+
+  const isSaving = createMutation.isPending || updateMutation.isPending || jurMutation.isPending;
 
   // ── handlers ────────────────────────────────────────────────────────────────
   function openCreate() {
@@ -135,6 +156,7 @@ export default function UsuariosPage() {
       apellidos: u.apellidos || '',
       roles: u.roles?.map((r) => r.rol.nombre).filter(Boolean) || [],
     });
+    setJurIds((u as any).jurisdiccionesAsignadas?.map((j: any) => j.jurisdiccionId ?? j.id ?? j) ?? []);
     setDni('');
     setDniError('');
     setSereno(null);
@@ -196,6 +218,7 @@ export default function UsuariosPage() {
       if (editing) {
         const { password, ...rest } = form;
         await updateMutation.mutateAsync({ id: editing.id, ...rest, ...(password ? { password } : {}) });
+        await jurMutation.mutateAsync({ id: editing.id, ids: jurIds });
         toast.success('Usuario actualizado');
       } else {
         await createMutation.mutateAsync(form);
@@ -205,6 +228,10 @@ export default function UsuariosPage() {
     } catch {
       toast.error('Error al guardar');
     }
+  }
+
+  function toggleJurisdiccion(id: number) {
+    setJurIds((prev) => prev.includes(id) ? prev.filter((j) => j !== id) : [...prev, id]);
   }
 
   const readonlyInputClass = 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 cursor-default';
@@ -245,12 +272,13 @@ export default function UsuariosPage() {
               <TableHeader className="sticky top-0 z-10">
                 <TableRow className="bg-green-600 hover:bg-green-600">
                   {[
-                    { label: 'Usuario',        cls: 'min-w-[130px]' },
-                    { label: 'Nombre completo',cls: 'min-w-[200px]' },
-                    { label: 'Email',          cls: 'min-w-[200px]' },
-                    { label: 'Roles',          cls: 'min-w-[160px]' },
-                    { label: 'Estado',         cls: 'min-w-[90px]'  },
-                    { label: 'Acciones',       cls: 'min-w-[80px]'  },
+                    { label: 'Usuario',         cls: 'min-w-[130px]' },
+                    { label: 'Nombre completo', cls: 'min-w-[200px]' },
+                    { label: 'Email',           cls: 'min-w-[200px]' },
+                    { label: 'Roles',           cls: 'min-w-[160px]' },
+                    { label: 'Jurisdicciones',  cls: 'min-w-[180px]' },
+                    { label: 'Estado',          cls: 'min-w-[90px]'  },
+                    { label: 'Acciones',        cls: 'min-w-[80px]'  },
                   ].map(({ label, cls }) => (
                     <TableHead key={label} className={`text-white font-semibold text-sm whitespace-nowrap bg-green-600 ${cls}`}>
                       {label}
@@ -262,14 +290,14 @@ export default function UsuariosPage() {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/40'}>
-                      {[1,2,3,4,5,6].map((j) => (
+                      {[1,2,3,4,5,6,7].map((j) => (
                         <TableCell key={j}><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /></TableCell>
                       ))}
                     </TableRow>
                   ))
                 ) : usuarios.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
+                    <TableCell colSpan={7} className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
                       {search ? 'No hay resultados para la búsqueda.' : 'Sin usuarios registrados.'}
                     </TableCell>
                   </TableRow>
@@ -294,6 +322,21 @@ export default function UsuariosPage() {
                             </span>
                           ))}
                         </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        {(() => {
+                          const jurs = (u as any).jurisdiccionesAsignadas ?? [];
+                          if (!jurs.length) return <span className="text-xs text-gray-400 dark:text-gray-500 italic">Todas</span>;
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {jurs.map((j: any) => (
+                                <span key={j.jurisdiccionId} className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                                  {j.jurisdiccion?.nombre ?? j.jurisdiccionId}
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="py-2.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.habilitado !== false ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'}`}>
@@ -482,6 +525,44 @@ export default function UsuariosPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Jurisdicciones Alertas SJL — solo en edición */}
+            {editing && jurisdicciones.length > 0 && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-gray-500" />
+                  Jurisdicciones Alertas SJL
+                </Label>
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Sin selección = ve todas las alertas
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {jurisdicciones.map((jur) => (
+                    <button
+                      key={jur.id}
+                      type="button"
+                      onClick={() => toggleJurisdiccion(jur.id)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                        jurIds.includes(jur.id)
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                      }`}
+                    >
+                      {jur.nombre || `Jurisdicción ${jur.id}`}
+                    </button>
+                  ))}
+                </div>
+                {jurIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setJurIds([])}
+                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 underline"
+                  >
+                    Limpiar selección (ver todas)
+                  </button>
+                )}
               </div>
             )}
           </div>

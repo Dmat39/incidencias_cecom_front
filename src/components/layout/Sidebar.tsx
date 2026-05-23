@@ -19,6 +19,10 @@ import {
   ChevronDown,
   LogOut,
   BarChart2,
+  Smartphone,
+  Users2,
+  MapPin,
+  ShieldCheck,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useState } from 'react';
@@ -29,6 +33,7 @@ const navItems = [
   { href: '/mapa',        label: 'Mapa en Vivo', icon: Map,             modulo: 'mapa' },
   { href: '/serenos',     label: 'Serenos',      icon: Shield,          modulo: 'serenos' },
   { href: '/usuarios',    label: 'Usuarios',     icon: Users,           modulo: 'usuarios' },
+  { href: '/roles',       label: 'Roles',        icon: ShieldCheck,     modulo: 'usuarios' },
   { href: '/catalogos',   label: 'Catálogos',    icon: BookOpen,        modulo: 'catalogos' },
   { href: '/reportes',    label: 'Reportes',     icon: FileBarChart,    modulo: 'reportes' },
   { href: '/metricas',   label: 'Métricas',     icon: BarChart2,       modulo: 'metricas' },
@@ -40,13 +45,21 @@ const sviSubItems = [
   { href: '/svi/historial',   label: 'Historial',   icon: History },
 ];
 
+const alertasSubItems = [
+  { href: '/alertas-sjl',      label: 'Incidencias App', icon: Smartphone },
+  { href: '/vecinos-app',      label: 'Vecinos App',     icon: Users2 },
+  { href: '/alertas-sjl/mapa', label: 'Mapa Alertas',    icon: MapPin },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout, modulosPermitidos } = useAuthStore();
   const { isAuthenticated: sviAuth, logout: sviLogout } = useSviAuthStore();
   const [sviOpen, setSviOpen] = useState(() => pathname.startsWith('/svi'));
+  const [alertasOpen, setAlertasOpen] = useState(() => pathname.startsWith('/alertas-sjl') || pathname.startsWith('/vecinos-app'));
 
   const sviActive = pathname.startsWith('/svi');
+  const alertasActive = pathname.startsWith('/alertas-sjl') || pathname.startsWith('/vecinos-app');
 
   return (
     <aside className="w-64 min-h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700/60 flex flex-col">
@@ -81,6 +94,51 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        {/* ── Alertas SJL módulo (collapsible) ── */}
+        {modulosPermitidos.includes('alertas') && (
+          <div>
+            <button
+              onClick={() => setAlertasOpen((v) => !v)}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
+                alertasActive
+                  ? 'bg-green-50 dark:bg-green-900/25 text-green-700 dark:text-green-400 font-semibold'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100',
+              )}
+            >
+              <Smartphone className={cn('h-5 w-5', alertasActive ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500')} />
+              <span className="flex-1 text-left">Alertas SJL</span>
+              <ChevronDown
+                className={cn('h-4 w-4 text-gray-400 dark:text-gray-500 transition-transform', alertasOpen && 'rotate-180')}
+              />
+            </button>
+
+            {alertasOpen && (
+              <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-3">
+                {alertasSubItems.map((sub) => {
+                  const Icon = sub.icon;
+                  const isActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={cn(
+                        'flex items-center gap-2 px-2 py-2 rounded-md text-sm transition-colors',
+                        isActive
+                          ? 'bg-green-50 dark:bg-green-900/25 text-green-700 dark:text-green-400 font-semibold'
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-100',
+                      )}
+                    >
+                      <Icon className={cn('h-4 w-4', isActive ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500')} />
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── SVI módulo (collapsible) ── */}
         {modulosPermitidos.includes('svi') && <div>

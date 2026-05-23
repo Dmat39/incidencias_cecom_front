@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ComboboxSearch } from '@/components/ui/combobox-search';
@@ -12,12 +12,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, Phone, MapPin, Clock } from 'lucide-react';
+import { ArrowLeft, Save, Phone, MapPin, Clock, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCreateIncidencia } from '@/hooks/useIncidencias';
 import {
   useUnidades, useTipoCasosByUnidad, useSubTipoCasosByTipo,
-  useMedios, useOperadoresByMedio, useTipoReportantes,
+  useMedios, useOperadores, useTipoReportantes,
   useSeveridades, useJurisdicciones, useEstadoIncidencias,
 } from '@/hooks/useCatalogos';
 import type { CatalogoItem } from '@/hooks/useCatalogos';
@@ -66,11 +66,30 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
 }
 
 export default function NuevaIncidenciaPage() {
-  const router = useRouter();
+  const router        = useRouter();
+  const searchParams  = useSearchParams();
   const createMutation = useCreateIncidencia();
+
+  // Pre-fill data coming from alertas-sjl ("Crear incidencia")
+  const prefill = useMemo(() => {
+    if (!searchParams) return {};
+    return {
+      nombre:            searchParams.get('nombre')          ?? undefined,
+      telefono:          searchParams.get('telefono')        ?? undefined,
+      lat:               searchParams.get('lat')     ? parseFloat(searchParams.get('lat')!)  : undefined,
+      lng:               searchParams.get('lng')     ? parseFloat(searchParams.get('lng')!)  : undefined,
+      direccion:         searchParams.get('direccion')       ?? undefined,
+      medioId:           searchParams.get('medioId')          ? parseInt(searchParams.get('medioId')!)          : undefined,
+      tipoReportanteId:  searchParams.get('tipoReportanteId') ? parseInt(searchParams.get('tipoReportanteId')!) : undefined,
+      ocurridoEn:        searchParams.get('ocurridoEn')      ?? undefined,
+      origen:            searchParams.get('origen')          ?? undefined,
+      panicAlertId:      searchParams.get('panicAlertId')     ? parseInt(searchParams.get('panicAlertId')!)     : undefined,
+    };
+  }, [searchParams]);
+
   const [selectedUnidad,      setSelectedUnidad]      = useState<number | undefined>();
   const [selectedTipoCaso,    setSelectedTipoCaso]    = useState<number | undefined>();
-  const [selectedMedio,       setSelectedMedio]       = useState<number | undefined>();
+  const [selectedMedio,       setSelectedMedio]       = useState<number | undefined>(prefill.medioId);
   const [severidadAutoFilled,    setSeveridadAutoFilled]    = useState(false);
   const [geocodingLoading,       setGeocodingLoading]       = useState(false);
   const [selectedTipoReportante, setSelectedTipoReportante] = useState<CatalogoItem | null>(null);
@@ -118,7 +137,7 @@ export default function NuevaIncidenciaPage() {
   const { data: tiposCasoFiltrados, isLoading: loadingTipos }    = useTipoCasosByUnidad(selectedUnidad);
   const { data: subTiposFiltrados,  isLoading: loadingSubtipos } = useSubTipoCasosByTipo(selectedTipoCaso);
   const { data: medios }                                          = useMedios();
-  const { data: operadoresFiltrados, isLoading: loadingOperadores } = useOperadoresByMedio(selectedMedio);
+  const { data: operadoresFiltrados, isLoading: loadingOperadores } = useOperadores();
   const { data: tipoReportantes } = useTipoReportantes();
   const esSerenazgo = (selectedTipoReportante?.descripcion ?? selectedTipoReportante?.nombre ?? '').toLowerCase().includes('seren');
   const { data: severidades }        = useSeveridades();
@@ -127,6 +146,16 @@ export default function NuevaIncidenciaPage() {
 
   const { control, register, handleSubmit, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      nombreReportante:   prefill.nombre,
+      telefonoReportante: prefill.telefono,
+      latitud:            prefill.lat,
+      longitud:           prefill.lng,
+      direccion:          prefill.direccion,
+      medioId:            prefill.medioId,
+      tipoReportanteId:   prefill.tipoReportanteId,
+      ocurridoEn:         prefill.ocurridoEn,
+    },
   });
 
   const { onChange: rhfNombreOnChange, ref: nombreRef, name: nombreName, onBlur: rhfNombreOnBlur } = register('nombreReportante');
@@ -143,6 +172,24 @@ export default function NuevaIncidenciaPage() {
     setValue('nombreReportante', nombre);
   }, [personalGestionate, gestionateFuente, setValue]);
 
+  // Sync tipoReportante state when pre-filling from URL (catalog loads after mount)
+  useEffect(() => {
+    if (!prefill.tipoReportanteId || !tipoReportantes?.length) return;
+    const item = tipoReportantes.find((t: CatalogoItem) => t.id === prefill.tipoReportanteId) ?? null;
+    if (item) setSelectedTipoReportante(item);
+  }, [prefill.tipoReportanteId, tipoReportantes]);
+
+  // Auto-detect jurisdiction when pre-filling lat/lng from URL
+  const jurisdiccionPrefillDone = useRef(false);
+  useEffect(() => {
+    if (jurisdiccionPrefillDone.current) return;
+    if (!prefill.lat || !prefill.lng || !jurisdicciones?.length) return;
+    jurisdiccionPrefillDone.current = true;
+    autoDetectarJurisdiccion(prefill.lat, prefill.lng, jurisdicciones).then((id) => {
+      if (id) { setValue('jurisdiccionId', id); setJurisdiccionAutoFilled(true); }
+    });
+  }, [prefill.lat, prefill.lng, jurisdicciones]);
+
   async function onSubmit(values: FormData) {
     // 1. Crear incidencia — si falla, parar aquí
     if (!values.telefonoReportante?.trim()) {
@@ -157,6 +204,14 @@ export default function NuevaIncidenciaPage() {
     // Adjuntar fuente del reportante cuando es serenazgo
     if (esSerenazgo) {
       payload.reportanteFuente = gestionateFuente ?? 'MANUAL';
+    }
+
+    // Vincular con alerta de pánico para que el backend la marque como atendida
+    if (prefill.panicAlertId) {
+      const sufijo = `\nID Alerta App: #${prefill.panicAlertId}`;
+      payload.descripcion = payload.descripcion
+        ? `${payload.descripcion}${sufijo}`
+        : sufijo.trim();
     }
 
     let inc: Incidencia;
@@ -211,6 +266,19 @@ export default function NuevaIncidenciaPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <fieldset disabled={createMutation.isPending} className="contents">
+
+        {/* Banner: datos pre-cargados desde alerta de pánico */}
+        {prefill.origen === 'panico' && (
+          <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3">
+            <Smartphone className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Datos pre-cargados desde App Vecino Seguro SJL</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                Reportante, teléfono, GPS y hora ya están completados. Solo elige la <strong>clasificación</strong> y confirma.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Clasificación */}
         <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -343,11 +411,13 @@ export default function NuevaIncidenciaPage() {
           <div className="p-5 grid grid-cols-2 gap-4">
             <Field label="Medio de Comunicación">
               <Controller name="medioId" control={control} render={({ field }) => (
-                <Select onValueChange={(v) => {
-                  const n = Number(v); field.onChange(n);
-                  setSelectedMedio(n);
-                  setValue('operadorId', undefined);
-                }}>
+                <Select
+                  value={field.value ? String(field.value) : undefined}
+                  onValueChange={(v) => {
+                    const n = Number(v); field.onChange(n);
+                    setSelectedMedio(n);
+                    setValue('operadorId', undefined);
+                  }}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>
                     {medios?.map((m: CatalogoItem) => <SelectItem key={m.id} value={String(m.id)}>{m.descripcion}</SelectItem>)}
@@ -359,16 +429,11 @@ export default function NuevaIncidenciaPage() {
             <Field label="Operador">
               <Controller name="operadorId" control={control} render={({ field }) => (
                 <Select
-                  key={`op-${selectedMedio}`}
                   value={field.value ? String(field.value) : undefined}
-                  disabled={!selectedMedio || loadingOperadores}
+                  disabled={loadingOperadores}
                   onValueChange={(v) => field.onChange(Number(v))}>
                   <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder={
-                      !selectedMedio ? 'Primero elige medio'
-                      : loadingOperadores ? 'Cargando...'
-                      : 'Seleccionar...'
-                    } />
+                    <SelectValue placeholder={loadingOperadores ? 'Cargando...' : 'Seleccionar...'} />
                   </SelectTrigger>
                   <SelectContent>
                     {operadoresFiltrados?.map((o: CatalogoItem) => <SelectItem key={o.id} value={String(o.id)}>{o.descripcion}</SelectItem>)}
@@ -385,17 +450,19 @@ export default function NuevaIncidenciaPage() {
           <div className="p-5 grid grid-cols-2 gap-4">
             <Field label="Tipo de Reportante">
               <Controller name="tipoReportanteId" control={control} render={({ field }) => (
-                <Select onValueChange={(v) => {
-                  field.onChange(Number(v));
-                  const item = tipoReportantes?.find((t: CatalogoItem) => t.id === Number(v)) ?? null;
-                  setSelectedTipoReportante(item);
-                  setSerenoDni('');
-                  setManualNombre('');
-                  setSerenoSearchMode('dni');
-                  setSerenoNombreQuery('');
-                  limpiarGestionate();
-                  setValue('nombreReportante', '');
-                }}>
+                <Select
+                  value={field.value ? String(field.value) : undefined}
+                  onValueChange={(v) => {
+                    field.onChange(Number(v));
+                    const item = tipoReportantes?.find((t: CatalogoItem) => t.id === Number(v)) ?? null;
+                    setSelectedTipoReportante(item);
+                    setSerenoDni('');
+                    setManualNombre('');
+                    setSerenoSearchMode('dni');
+                    setSerenoNombreQuery('');
+                    limpiarGestionate();
+                    setValue('nombreReportante', '');
+                  }}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>
                     {tipoReportantes?.map((t: CatalogoItem) => <SelectItem key={t.id} value={String(t.id)}>{t.descripcion}</SelectItem>)}
