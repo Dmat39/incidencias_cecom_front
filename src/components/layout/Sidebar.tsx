@@ -118,7 +118,7 @@ export default function Sidebar() {
               <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-3">
                 {alertasSubItems.map((sub) => {
                   const Icon = sub.icon;
-                  const isActive = pathname === sub.href || pathname.startsWith(sub.href + '/');
+                  const isActive = pathname === sub.href;
                   return (
                     <Link
                       key={sub.href}

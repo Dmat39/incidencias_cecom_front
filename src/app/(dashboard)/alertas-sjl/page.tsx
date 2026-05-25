@@ -614,6 +614,8 @@ export default function AlertasSjlPage() {
     if (actualizada) setSeleccionada(actualizada);
   }, [data?.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const esSupervisorOAdmin = user?.roles?.some((r) => r === 'admin' || r === 'supervisor') ?? false;
+
   useSocket({
     'alerta-panico-actualizada': (payload: { panicAlertId: number; estado: string; operadorNombre: string }) => {
       qc.setQueriesData<{ data: PanicoAlerta[]; total: number; page: number; limit: number; totalPages: number }>(
@@ -622,17 +624,22 @@ export default function AlertasSjlPage() {
           if (!old) return old;
           return {
             ...old,
-            data: old.data.map((a) =>
-              a.id === payload.panicAlertId
-                ? { ...a, estadoApp: payload.estado as EstadoApp, operadorRef: payload.operadorNombre || null }
-                : a
-            ),
+            data: old.data.map((a) => {
+              if (a.id !== payload.panicAlertId) return a;
+              // Solo actualizar operadorRef si viene con valor; si el estado es terminal limpiar
+              const esTerminal = payload.estado === 'FINALIZADA' || payload.estado === 'FALSA';
+              return {
+                ...a,
+                estadoApp: payload.estado as EstadoApp,
+                operadorRef: esTerminal ? null : (payload.operadorNombre || a.operadorRef),
+              };
+            }),
           };
         }
       );
     },
     'alerta-panico-liberada': (payload: { alertId: number }) => {
-      // Limpia el operadorRef en la fila al liberar el lock
+      // Solo limpiar operadorRef si la alerta NO sigue en ATENDIENDO
       qc.setQueriesData<{ data: PanicoAlerta[]; total: number; page: number; limit: number; totalPages: number }>(
         { queryKey: ['panico', 'alertas'] },
         (old) => {
@@ -640,7 +647,9 @@ export default function AlertasSjlPage() {
           return {
             ...old,
             data: old.data.map((a) =>
-              a.id === payload.alertId ? { ...a, operadorRef: null } : a
+              a.id === payload.alertId && a.estadoApp !== 'ATENDIENDO'
+                ? { ...a, operadorRef: null }
+                : a
             ),
           };
         }
@@ -648,13 +657,26 @@ export default function AlertasSjlPage() {
     },
   });
 
-  /** Abre el panel; alertas terminales se abren directamente sin lock */
+  /** Abre el panel; admin/supervisor entran sin lock; operadores son bloqueados si ya está tomada */
   function handleAlertaClick(alerta: PanicoAlerta) {
     const esTerminal = alerta.estadoApp === 'FINALIZADA' || alerta.estadoApp === 'FALSA';
-    if (esTerminal) {
+
+    // Terminales y supervisores/admin entran directo sin lock
+    if (esTerminal || esSupervisorOAdmin) {
       setSeleccionada(alerta);
       return;
     }
+
+    // Si ya está siendo atendida por otro operador, bloquear
+    if (
+      alerta.estadoApp === 'ATENDIENDO' &&
+      alerta.operadorRef &&
+      alerta.operadorRef !== user?.username
+    ) {
+      toast.error(`Esta alerta ya está siendo atendida por ${alerta.operadorRef}`, { duration: 5000 });
+      return;
+    }
+
     getSocket().emit(
       'panico:join',
       { alertId: alerta.id, operadorNombre: user?.username ?? 'Operador' },

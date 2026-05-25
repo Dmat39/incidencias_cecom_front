@@ -31,7 +31,7 @@ function getModuloForPath(pathname: string): string | null {
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, modulosPermitidos, setModulos, setJurisdicciones } = useAuthStore();
+  const { isAuthenticated, modulosPermitidos, setModulos, setJurisdicciones, logout } = useAuthStore();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -55,6 +55,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           checkAccess(modulosPermitidos);
         }
       } catch {
+        logout();
         router.replace('/login');
       } finally {
         setChecked(true);
@@ -64,9 +65,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const checkAccess = (modulos: string[]) => {
       const modulo = getModuloForPath(pathname);
       if (modulo && !modulos.includes(modulo)) {
+        if (modulos.length === 0) {
+          logout();
+          router.replace('/login');
+          return;
+        }
         // Redirigir al primer módulo permitido
-        const primera = modulos[0] ? `/${modulos[0]}` : '/login';
-        router.replace(primera);
+        router.replace(`/${modulos[0]}`);
       }
     };
 
