@@ -17,8 +17,10 @@ import { useTheme } from 'next-themes';
 import { formatDate } from '@/lib/date';
 import {
   AlertTriangle, Clock, CheckCircle, XCircle, TrendingUp,
-  Sun, Sunset, Moon, ShieldAlert, Activity,
+  Sun, Sunset, Moon, ShieldAlert, Activity, Smartphone,
 } from 'lucide-react';
+import { usePanicoStats } from '@/hooks/usePanicoAlertas';
+import Link from 'next/link';
 import type { Incidencia } from '@/types';
 
 // ── Zona horaria Lima ────────────────────────────────────────────────────────
@@ -110,6 +112,7 @@ export default function DashboardPage() {
   const [fechaFin, setFechaFin]       = useState(TODAY);
 
   const { data: stats, isLoading } = useIncidenciasStats(fechaInicio, fechaFin);
+  const { data: panicoStats, isLoading: panicoLoading } = usePanicoStats();
 
   useSocket({
     'nueva-incidencia': (inc: Incidencia) => {
@@ -395,6 +398,78 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
+      </SectionCard>
+
+      {/* ── Botón de Pánico App ─────────────────────────────────────────── */}
+      <SectionCard title="🚨 Botón de Pánico — App Vecino Seguro SJL">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-red-100 dark:bg-red-900/40 rounded-xl">
+              <Smartphone className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              {panicoLoading ? <Skeleton className="h-7 w-12 mb-1" /> : (
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{panicoStats?.hoy ?? 0}</p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">Alertas hoy</p>
+            </div>
+          </div>
+          <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-orange-100 dark:bg-orange-900/40 rounded-xl">
+              <Activity className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              {panicoLoading ? <Skeleton className="h-7 w-12 mb-1" /> : (
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{panicoStats?.semana ?? 0}</p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">Últimos 7 días</p>
+            </div>
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-purple-100 dark:bg-purple-900/40 rounded-xl">
+              <ShieldAlert className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              {panicoLoading ? <Skeleton className="h-7 w-24 mb-1" /> : (
+                <p className="text-lg font-bold text-gray-800 dark:text-gray-100 truncate">
+                  {panicoStats?.porJurisdiccion?.[0]?.nombre ?? '—'}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">Jurisdicción con más alertas</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Barras por jurisdicción */}
+        {panicoLoading ? <Skeleton className="h-36" /> : (panicoStats?.porJurisdiccion ?? []).length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Alertas por Jurisdicción (últimos 7 días)</p>
+            {panicoStats!.porJurisdiccion.map((j) => {
+              const max = panicoStats!.porJurisdiccion[0].count;
+              const pct = max > 0 ? Math.round((j.count / max) * 100) : 0;
+              return (
+                <div key={j.nombre}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-xs text-gray-700 dark:text-gray-300 font-medium">{j.nombre}</span>
+                    <span className="text-xs font-bold text-gray-800 dark:text-gray-100">{j.count}</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-red-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 dark:text-gray-600 text-center py-4">Sin alertas en los últimos 7 días</p>
+        )}
+
+        <div className="mt-4 flex justify-end">
+          <Link href="/alertas-sjl"
+            className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline">
+            Ver todas las alertas →
+          </Link>
+        </div>
       </SectionCard>
 
     </div>

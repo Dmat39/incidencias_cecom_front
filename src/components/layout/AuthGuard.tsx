@@ -12,10 +12,13 @@ const ROUTE_MODULO: Record<string, string> = {
   '/mapa':        'mapa',
   '/serenos':     'serenos',
   '/usuarios':    'usuarios',
+  '/roles':       'usuarios',
   '/catalogos':   'catalogos',
   '/reportes':    'reportes',
   '/auditoria':   'auditoria',
   '/svi':         'svi',
+  '/alertas-sjl': 'alertas',
+  '/vecinos-app': 'alertas',
 };
 
 function getModuloForPath(pathname: string): string | null {
@@ -28,7 +31,7 @@ function getModuloForPath(pathname: string): string | null {
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, modulosPermitidos, setModulos } = useAuthStore();
+  const { isAuthenticated, modulosPermitidos, setModulos, setJurisdicciones, logout } = useAuthStore();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -42,13 +45,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         if (modulosPermitidos.length === 0) {
           const { data } = await api.get('/auth/me');
-          const modulos: string[] = data?.data?.modulosPermitidos ?? data?.modulosPermitidos ?? [];
+          const payload = data?.data ?? data ?? {};
+          const modulos: string[] = payload.modulosPermitidos ?? [];
+          const jurisdicciones: number[] = payload.jurisdiccionesAsignadas ?? [];
           setModulos(modulos);
+          setJurisdicciones(jurisdicciones);
           checkAccess(modulos);
         } else {
           checkAccess(modulosPermitidos);
         }
       } catch {
+        logout();
         router.replace('/login');
       } finally {
         setChecked(true);
@@ -58,9 +65,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const checkAccess = (modulos: string[]) => {
       const modulo = getModuloForPath(pathname);
       if (modulo && !modulos.includes(modulo)) {
+        if (modulos.length === 0) {
+          logout();
+          router.replace('/login');
+          return;
+        }
         // Redirigir al primer módulo permitido
-        const primera = modulos[0] ? `/${modulos[0]}` : '/login';
-        router.replace(primera);
+        router.replace(`/${modulos[0]}`);
       }
     };
 

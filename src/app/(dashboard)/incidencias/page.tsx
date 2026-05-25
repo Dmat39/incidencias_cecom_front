@@ -197,13 +197,13 @@ export default function IncidenciasPage() {
           <Table className="w-full table-fixed">
 
             <colgroup>
-              <col style={{ width: '110px' }} />  {/* Código */}
-              <col style={{ width: '100px' }} />  {/* Fecha/Hora */}
-              <col style={{ width: '100px' }} />  {/* Unidad */}
-              <col style={{ width: '370px' }} />  {/* Tipo de Caso */}
-              <col style={{ width: '280px' }} />  {/* Dirección */}
-              <col style={{ width: '95px' }} />   {/* Severidad */}
-              <col style={{ width: '85px' }} />   {/* Estado */}
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '370px' }} />
+              <col style={{ width: '280px' }} />
+              <col style={{ width: '95px' }} />
+              <col style={{ width: '85px' }} />
             </colgroup>
 
             <TableHeader className="sticky top-0 z-10">

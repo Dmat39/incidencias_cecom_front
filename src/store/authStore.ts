@@ -8,10 +8,12 @@ interface AuthStore {
   refreshToken: string | null;
   isAuthenticated: boolean;
   modulosPermitidos: string[];
+  jurisdiccionesAsignadas: number[];
   login: (user: UsuarioAuth, accessToken: string, refreshToken: string) => void;
   logout: () => void;
   setTokens: (accessToken: string, refreshToken?: string) => void;
   setModulos: (modulos: string[]) => void;
+  setJurisdicciones: (ids: number[]) => void;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -22,6 +24,7 @@ export const useAuthStore = create<AuthStore>()(
       refreshToken: null,
       isAuthenticated: false,
       modulosPermitidos: [],
+      jurisdiccionesAsignadas: [],
 
       login: (user, accessToken, refreshToken) => {
         if (typeof window !== 'undefined') {
@@ -42,6 +45,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       setModulos: (modulos) => set({ modulosPermitidos: modulos }),
+      setJurisdicciones: (ids) => set({ jurisdiccionesAsignadas: ids }),
 
       setTokens: (accessToken, refreshToken) => {
         if (typeof window !== 'undefined') {
@@ -62,6 +66,7 @@ export const useAuthStore = create<AuthStore>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
         modulosPermitidos: state.modulosPermitidos,
+        jurisdiccionesAsignadas: state.jurisdiccionesAsignadas,
       }),
     }
   )
