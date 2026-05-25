@@ -190,6 +190,40 @@ export default function NuevaIncidenciaPage() {
     });
   }, [prefill.lat, prefill.lng, jurisdicciones]);
 
+  // Auto-geocode dirección cuando viene lat/lng pero sin dirección (la app solo envía coordenadas)
+  const direccionPrefillDone = useRef(false);
+  useEffect(() => {
+    if (direccionPrefillDone.current) return;
+    if (!prefill.lat || !prefill.lng) return;
+    if (prefill.direccion) {
+      // Ya tenemos dirección del URL, no geocodificar
+      direccionPrefillDone.current = true;
+      return;
+    }
+    direccionPrefillDone.current = true;
+    setGeocodingLoading(true);
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${prefill.lat}&lon=${prefill.lng}&accept-language=es`,
+      { headers: { 'Accept-Language': 'es' } },
+    )
+      .then((r) => r.json())
+      .then((json) => {
+        const a = json.address ?? {};
+        const parts: string[] = [];
+        const road = a.road ?? a.pedestrian ?? a.footway ?? a.path ?? '';
+        if (road) parts.push(road);
+        if (a.house_number) parts.push(a.house_number);
+        const area = a.suburb ?? a.neighbourhood ?? a.quarter ?? a.city_district ?? '';
+        if (area) parts.push(area);
+        const city = a.city ?? a.town ?? a.village ?? a.municipality ?? '';
+        if (city && city !== area) parts.push(city);
+        const address = parts.join(', ') || json.display_name || '';
+        if (address) setValue('direccion', address);
+      })
+      .catch(() => {})
+      .finally(() => setGeocodingLoading(false));
+  }, [prefill.lat, prefill.lng, prefill.direccion]);
+
   async function onSubmit(values: FormData) {
     // 1. Crear incidencia — si falla, parar aquí
     if (!values.telefonoReportante?.trim()) {
