@@ -457,7 +457,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                           }));
                         }}
                         onLoading={setMapLoading}
-                        activeJurisdiccionName={inc?.jurisdiccion?.nombre}
+                        activeJurisdiccionName={inc?.jurisdiccion?.nombre ?? undefined}
                       />
                     </div>
                     <p className="text-xs text-gray-400">Haz clic en el mapa para actualizar la ubicación y dirección automáticamente.</p>
