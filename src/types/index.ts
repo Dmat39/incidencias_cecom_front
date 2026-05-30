@@ -20,12 +20,6 @@ export interface UsuarioAuth {
   jurisdiccionesAsignadas?: number[];
 }
 
-export interface Jurisdiccion {
-  id: number;
-  nombre: string | null;
-  codigo?: string | null;
-}
-
 export interface AuthState {
   user: UsuarioAuth | null;
   accessToken: string | null;
@@ -81,8 +75,8 @@ export interface Operador extends CatalogoBase {
 
 export interface Jurisdiccion {
   id: number;
-  codigo?: string;
-  nombre?: string;
+  nombre?: string | null;
+  codigo?: string | null;
   habilitado?: boolean;
 }
 
