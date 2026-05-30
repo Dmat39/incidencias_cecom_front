@@ -489,6 +489,12 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                     <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Canal</p>
                     <DataRow label="Medio" value={inc.medio?.descripcion} />
                     <DataRow label="Operador" value={inc.operador?.descripcion} />
+                    <DataRow
+                      label="Registrado por"
+                      value={(inc as any).usuario
+                        ? `${(inc as any).usuario.nombres ?? ''} ${(inc as any).usuario.apellidos ?? ''}`.trim() || (inc as any).usuario.username
+                        : undefined}
+                    />
                   </div>
                   <div className="space-y-2 mt-4">
                     <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Reportante</p>
