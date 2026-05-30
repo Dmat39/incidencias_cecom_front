@@ -17,11 +17,15 @@ import { useTheme } from 'next-themes';
 import { formatDate } from '@/lib/date';
 import {
   AlertTriangle, Clock, CheckCircle, XCircle, TrendingUp,
-  Sun, Sunset, Moon, ShieldAlert, Activity, Smartphone,
+  Sun, Sunset, Moon, ShieldAlert, Activity, Smartphone, Filter, X,
 } from 'lucide-react';
 import { usePanicoStats } from '@/hooks/usePanicoAlertas';
+import { useTipoCasos, useSubTipoCasos } from '@/hooks/useCatalogos';
+import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
+import { useAuthStore } from '@/store/authStore';
 import Link from 'next/link';
 import type { Incidencia } from '@/types';
+
 
 // ── Zona horaria Lima ────────────────────────────────────────────────────────
 function todayLima() {
@@ -108,10 +112,30 @@ export default function DashboardPage() {
     legend:  dark ? '#d1d5db' : '#374151',
   };
 
+  const modulosPermitidos = useAuthStore((s) => s.modulosPermitidos);
+  const puedeVerPanico = modulosPermitidos.includes('alertas');
+
   const [fechaInicio, setFechaInicio] = useState(getWeekStart());
   const [fechaFin, setFechaFin]       = useState(TODAY);
+  const [tipoCasoIds, setTipoCasoIds]       = useState<number[]>([]);
+  const [subTipoCasoIds, setSubTipoCasoIds] = useState<number[]>([]);
 
-  const { data: stats, isLoading } = useIncidenciasStats(fechaInicio, fechaFin);
+  const { data: todosTipos }    = useTipoCasos();
+  const { data: todosSubtipos } = useSubTipoCasos();
+
+  // Subtipos agrupados: primero los del tipo seleccionado, luego el resto
+  const subtipoGroups = (() => {
+    const all = todosSubtipos ?? [];
+    if (tipoCasoIds.length === 0) return undefined; // sin tipos → lista plana
+    const delTipo  = all.filter((s) => s.tipoCasoId && tipoCasoIds.includes(s.tipoCasoId));
+    const otros    = all.filter((s) => !s.tipoCasoId || !tipoCasoIds.includes(s.tipoCasoId));
+    const grupos = [];
+    if (delTipo.length > 0) grupos.push({ label: 'De los tipos seleccionados', options: delTipo.map((s) => ({ id: s.id, label: s.descripcion ?? '' })) });
+    if (otros.length   > 0) grupos.push({ label: 'Otros subtipos',             options: otros.map((s)    => ({ id: s.id, label: s.descripcion ?? '' })) });
+    return grupos;
+  })();
+
+  const { data: stats, isLoading } = useIncidenciasStats(fechaInicio, fechaFin, tipoCasoIds, subTipoCasoIds);
   const { data: panicoStats, isLoading: panicoLoading } = usePanicoStats();
 
   useSocket({
@@ -176,15 +200,55 @@ export default function DashboardPage() {
           </div>
           <div className="flex gap-1.5">
             {[
-              { label: 'Hoy',       fn: () => { setFechaInicio(TODAY); setFechaFin(TODAY); } },
-              { label: 'Semana',    fn: () => { setFechaInicio(getWeekStart()); setFechaFin(TODAY); } },
-              { label: 'Mes',       fn: () => { setFechaInicio(getMonthStart()); setFechaFin(TODAY); } },
+              { label: 'Hoy',    fn: () => { setFechaInicio(TODAY); setFechaFin(TODAY); } },
+              { label: 'Semana', fn: () => { setFechaInicio(getWeekStart()); setFechaFin(TODAY); } },
+              { label: 'Mes',    fn: () => { setFechaInicio(getMonthStart()); setFechaFin(TODAY); } },
             ].map(({ label, fn }) => (
               <button key={label} onClick={fn} className={`${quickBtn} ${quickBtnIdle}`}>{label}</button>
             ))}
           </div>
+
+          {/* Filtros por tipo / subtipo */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Filter className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+            <MultiSelectFilter
+              options={(todosTipos ?? []).map((t) => ({ id: t.id, label: t.descripcion ?? '' }))}
+              selected={tipoCasoIds}
+              onChange={(ids) => { setTipoCasoIds(ids); setSubTipoCasoIds([]); }}
+              placeholder="Tipo de caso"
+              singularLabel="tipo"
+              pluralLabel="tipos"
+            />
+            <MultiSelectFilter
+              options={subtipoGroups ? undefined : (todosSubtipos ?? []).map((s) => ({ id: s.id, label: s.descripcion ?? '' }))}
+              groups={subtipoGroups}
+              selected={subTipoCasoIds}
+              onChange={setSubTipoCasoIds}
+              placeholder="Subtipo"
+              singularLabel="subtipo"
+              pluralLabel="subtipos"
+            />
+          </div>
         </div>
       </div>
+
+      {/* Banner filtro activo */}
+      {(tipoCasoIds.length > 0 || subTipoCasoIds.length > 0) && (
+        <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-xs text-green-700 dark:text-green-400">
+          <Filter className="h-3.5 w-3.5 shrink-0" />
+          <span>Filtrado por:</span>
+          {tipoCasoIds.length > 0 && (
+            <span className="font-semibold bg-green-100 dark:bg-green-900/40 px-2.5 py-0.5 rounded-full">
+              {tipoCasoIds.length} {tipoCasoIds.length === 1 ? 'tipo' : 'tipos'}
+            </span>
+          )}
+          {subTipoCasoIds.length > 0 && (
+            <span className="font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-2.5 py-0.5 rounded-full">
+              {subTipoCasoIds.length} {subTipoCasoIds.length === 1 ? 'subtipo' : 'subtipos'}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ── KPIs principales ───────────────────────────────────────────── */}
       {isLoading ? (
@@ -400,8 +464,8 @@ export default function DashboardPage() {
         )}
       </SectionCard>
 
-      {/* ── Botón de Pánico App ─────────────────────────────────────────── */}
-      <SectionCard title="🚨 Botón de Pánico — App Vecino Seguro SJL">
+      {/* ── Botón de Pánico App — visible solo para roles en ROLES_PANICO ── */}
+      {puedeVerPanico && <SectionCard title=" Botón de Pánico — App Vecino Seguro SJL">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 flex items-center gap-3">
             <div className="p-2.5 bg-red-100 dark:bg-red-900/40 rounded-xl">
@@ -470,7 +534,7 @@ export default function DashboardPage() {
             Ver todas las alertas →
           </Link>
         </div>
-      </SectionCard>
+      </SectionCard>}
 
     </div>
   );

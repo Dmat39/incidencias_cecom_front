@@ -1,15 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileDown, FileBarChart } from 'lucide-react';
+import { FileDown, FileBarChart, MapPin, Pencil, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 import { useUnidades, useEstadoIncidencias, useTipoCasos, useTipoCasosByUnidad, useSubTipoCasos, useSubTipoCasosByTipo } from '@/hooks/useCatalogos';
+
+const MapZonaPicker = dynamic(
+  () => import('@/components/reportes/MapZonaPicker'),
+  { ssr: false, loading: () => <div className="h-[420px] bg-gray-100 rounded-lg flex items-center justify-center text-sm text-gray-400">Cargando mapa...</div> }
+);
 
 interface ReportFilter {
   fechaInicio?: string;
@@ -21,8 +28,16 @@ interface ReportFilter {
 }
 
 export default function ReportesPage() {
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.roles?.includes('admin') ?? false;
+
   const [filters, setFilters] = useState<ReportFilter>({});
   const [loading, setLoading] = useState(false);
+  const [zonaFechaInicio, setZonaFechaInicio] = useState('2025-01-01');
+  const [zonaFechaFin, setZonaFechaFin] = useState('2026-05-27');
+  const [zonaLoading, setZonaLoading] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [customPolygon, setCustomPolygon] = useState<[number, number][] | null>(null);
   const { data: unidades } = useUnidades();
   const { data: estados } = useEstadoIncidencias();
   const { data: todosTipos }       = useTipoCasos();
@@ -32,6 +47,44 @@ export default function ReportesPage() {
   const { data: todosSubtipos }    = useSubTipoCasos();
   const { data: subtiposPorTipo }  = useSubTipoCasosByTipo(filters.tipoCasoId);
   const subtipos = filters.tipoCasoId ? subtiposPorTipo : todosSubtipos;
+
+  function handlePolygonConfirm(polygon: [number, number][]) {
+    setCustomPolygon(polygon);
+    setShowMap(false);
+  }
+
+  async function handleZonaDownload() {
+    if (!customPolygon) {
+      toast.error('Primero dibuja el perímetro en el mapa');
+      return;
+    }
+    if (!zonaFechaInicio || !zonaFechaFin) {
+      toast.error('Selecciona el rango de fechas');
+      return;
+    }
+    setZonaLoading(true);
+    try {
+      const response = await api.post(
+        '/reportes/excel-zona',
+        { fechaInicio: zonaFechaInicio, fechaFin: zonaFechaFin, polygon: customPolygon },
+        { responseType: 'blob' },
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Lima' });
+      link.setAttribute('download', `reporte_zona_${fecha}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Reporte de zona descargado');
+    } catch {
+      toast.error('Error al generar el reporte de zona');
+    } finally {
+      setZonaLoading(false);
+    }
+  }
 
   async function handleDownload() {
     setLoading(true);
@@ -158,6 +211,88 @@ export default function ReportesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reporte por Zona Geográfica — solo admin */}
+      {isAdmin && <Card className="border border-blue-200 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MapPin className="h-5 w-5 text-blue-600" />
+            Reporte por Zona Geográfica
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+
+          {/* Step 1 — Draw perimeter */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">1. Definir perímetro</span>
+              {customPolygon && (
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  {customPolygon.length} puntos definidos
+                </span>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMap((v) => !v)}
+              className="gap-2"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              {showMap ? 'Ocultar mapa' : customPolygon ? 'Redibujar zona' : 'Dibujar zona en el mapa'}
+            </Button>
+
+            {showMap && (
+              <MapZonaPicker onConfirm={handlePolygonConfirm} />
+            )}
+          </div>
+
+          {/* Step 2 — Date range + download (only when polygon ready) */}
+          {customPolygon && !showMap && (
+            <div className="space-y-4 pt-2 border-t border-blue-100">
+              <span className="text-sm font-medium text-gray-700">2. Seleccionar rango de fechas</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label>Fecha inicio</Label>
+                  <Input
+                    type="date"
+                    value={zonaFechaInicio}
+                    onChange={(e) => setZonaFechaInicio(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Fecha fin</Label>
+                  <Input
+                    type="date"
+                    value={zonaFechaFin}
+                    onChange={(e) => setZonaFechaFin(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleZonaDownload}
+                disabled={zonaLoading}
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 font-semibold"
+              >
+                {zonaLoading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                    Generando...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <FileDown className="h-4 w-4" />
+                    Descargar Excel de la Zona
+                  </span>
+                )}
+              </Button>
+            </div>
+          )}
+
+        </CardContent>
+      </Card>}
 
       <Card className="border border-gray-100 dark:border-gray-700 bg-green-50/40 dark:bg-green-900/10">
         <CardContent className="p-4 text-sm text-gray-600 dark:text-gray-400 space-y-1">
