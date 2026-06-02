@@ -31,10 +31,13 @@ function getModuloForPath(pathname: string): string | null {
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, modulosPermitidos, setModulos, setJurisdicciones, logout } = useAuthStore();
+  const { isAuthenticated, modulosPermitidos, setModulos, setJurisdicciones, logout, _hasHydrated } = useAuthStore();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
+    // Esperar a que Zustand rehydrate desde localStorage antes de redirigir
+    if (!_hasHydrated) return;
+
     if (!isAuthenticated) {
       router.replace('/login');
       return;
@@ -76,10 +79,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     };
 
     fetchMe();
-  }, [isAuthenticated, pathname]);
+  }, [isAuthenticated, pathname, _hasHydrated]);
 
+  // Mientras Zustand rehydrata o hace el check, no mostrar nada
+  if (!_hasHydrated) return null;
   if (!isAuthenticated) return null;
-  if (!checked) return null; // evita flash de contenido no autorizado
+  if (!checked) return null;
 
   return <>{children}</>;
 }

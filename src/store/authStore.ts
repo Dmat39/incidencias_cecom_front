@@ -9,11 +9,13 @@ interface AuthStore {
   isAuthenticated: boolean;
   modulosPermitidos: string[];
   jurisdiccionesAsignadas: number[];
+  _hasHydrated: boolean;
   login: (user: UsuarioAuth, accessToken: string, refreshToken: string) => void;
   logout: () => void;
   setTokens: (accessToken: string, refreshToken?: string) => void;
   setModulos: (modulos: string[]) => void;
   setJurisdicciones: (ids: number[]) => void;
+  setHasHydrated: (v: boolean) => void;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -25,6 +27,7 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       modulosPermitidos: [],
       jurisdiccionesAsignadas: [],
+      _hasHydrated: false,
 
       login: (user, accessToken, refreshToken) => {
         if (typeof window !== 'undefined') {
@@ -46,6 +49,7 @@ export const useAuthStore = create<AuthStore>()(
 
       setModulos: (modulos) => set({ modulosPermitidos: modulos }),
       setJurisdicciones: (ids) => set({ jurisdiccionesAsignadas: ids }),
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       setTokens: (accessToken, refreshToken) => {
         if (typeof window !== 'undefined') {
@@ -68,6 +72,9 @@ export const useAuthStore = create<AuthStore>()(
         modulosPermitidos: state.modulosPermitidos,
         jurisdiccionesAsignadas: state.jurisdiccionesAsignadas,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );
