@@ -246,6 +246,8 @@ export interface FilterIncidenciaDto {
   unidadId?: number;
   jurisdiccionId?: number;
   severidadId?: number;
+  tipoCasoId?: number;
+  subTipoCasoId?: number;
   page?: number;
   limit?: number;
 }

@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useIncidencias } from '@/hooks/useIncidencias';
 import { useSocket } from '@/hooks/useSocket';
-import { useEstadoIncidencias, useUnidades, useJurisdicciones, useSeveridades } from '@/hooks/useCatalogos';
+import { useEstadoIncidencias, useUnidades, useJurisdicciones, useSeveridades, useTipoCasos, useTipoCasosByUnidad, useSubTipoCasos, useSubTipoCasosByTipo } from '@/hooks/useCatalogos';
 import EstadoBadge, { getEstadoDotColor } from '@/components/incidencias/EstadoBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ComboboxSearch } from '@/components/ui/combobox-search';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  Plus, Eye, ChevronLeft, ChevronRight,
+  Plus, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, Search, Filter,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -32,16 +32,23 @@ function SeveridadBadge({ descripcion }: { descripcion?: string }) {
   return <span className={cls}>{descripcion}</span>;
 }
 
+type DropdownFilters = Pick<FilterIncidenciaDto, 'situacionId' | 'unidadId' | 'jurisdiccionId' | 'severidadId' | 'tipoCasoId' | 'subTipoCasoId' | 'fechaInicio' | 'fechaFin'>;
+
+const EMPTY_PENDING: DropdownFilters = {};
+
 export default function IncidenciasPage() {
   const router = useRouter();
   const qc = useQueryClient();
+
+  // filters = lo que se envía al backend (solo cambia con Aplicar o paginación)
   const [filters, setFilters] = useState<FilterIncidenciaDto>({ page: 1, limit: 20 });
+  // pendingFilters = lo que el usuario está ajustando en los dropdowns (aún no aplicado)
+  const [pending, setPending] = useState<DropdownFilters>(EMPTY_PENDING);
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
+  const [hasChanges, setHasChanges] = useState(false);
 
-  // Debounce: envía el texto al backend después de 400ms sin escribir
+  // Debounce solo para el buscador de texto
   useEffect(() => {
     const timer = setTimeout(() => {
       setFilters((f) => ({ ...f, search: searchText.trim() || undefined, page: 1 }));
@@ -50,10 +57,16 @@ export default function IncidenciasPage() {
   }, [searchText]);
 
   const { data, isLoading, isFetching } = useIncidencias(filters);
-  const { data: estados } = useEstadoIncidencias();
-  const { data: unidades } = useUnidades();
+  const { data: estados }        = useEstadoIncidencias();
+  const { data: unidades }       = useUnidades();
   const { data: jurisdicciones } = useJurisdicciones();
-  const { data: severidades } = useSeveridades();
+  const { data: severidades }    = useSeveridades();
+  const { data: todosTipos }     = useTipoCasos();
+  const { data: tiposPorUnidad } = useTipoCasosByUnidad(pending.unidadId);
+  const tiposCaso = pending.unidadId ? tiposPorUnidad : todosTipos;
+  const { data: todosSubtipos }   = useSubTipoCasos();
+  const { data: subtiposPorTipo } = useSubTipoCasosByTipo(pending.tipoCasoId);
+  const subtipos = pending.tipoCasoId ? subtiposPorTipo : todosSubtipos;
 
   useSocket({
     'nueva-incidencia': (inc: Incidencia) => {
@@ -65,8 +78,21 @@ export default function IncidenciasPage() {
     },
   });
 
-  function updateFilter(key: keyof FilterIncidenciaDto, value: string | number | undefined) {
-    setFilters((f) => ({ ...f, [key]: value, page: 1 }));
+  function setPendingFilter(key: keyof DropdownFilters, value: string | number | undefined) {
+    setPending((p) => ({ ...p, [key]: value }));
+    setHasChanges(true);
+  }
+
+  function applyFilters() {
+    setFilters((f) => ({ ...f, ...pending, page: 1 }));
+    setHasChanges(false);
+  }
+
+  function clearFilters() {
+    setPending(EMPTY_PENDING);
+    setHasChanges(false);
+    setSearchText('');
+    setFilters({ page: 1, limit: filters.limit ?? 20 });
   }
 
   const incidencias = data?.data || [];
@@ -120,74 +146,102 @@ export default function IncidenciasPage() {
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Desde</label>
             <Input
               type="date"
-              className="h-8 text-sm w-36"
-              value={fechaInicio}
-              max={fechaFin || undefined}
-              onChange={(e) => {
-                setFechaInicio(e.target.value);
-                updateFilter('fechaInicio', e.target.value || undefined);
-              }}
+              className="h-9 text-sm w-36"
+              value={pending.fechaInicio ?? ''}
+              max={pending.fechaFin || undefined}
+              onChange={(e) => setPendingFilter('fechaInicio', e.target.value || undefined)}
             />
           </div>
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Hasta</label>
             <Input
               type="date"
-              className="h-8 text-sm w-36"
-              value={fechaFin}
-              min={fechaInicio || undefined}
-              onChange={(e) => {
-                setFechaFin(e.target.value);
-                updateFilter('fechaFin', e.target.value || undefined);
-              }}
+              className="h-9 text-sm w-36"
+              value={pending.fechaFin ?? ''}
+              min={pending.fechaInicio || undefined}
+              onChange={(e) => setPendingFilter('fechaFin', e.target.value || undefined)}
             />
           </div>
-          <div>
+          <div className="w-52">
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Tipo de caso</label>
+            <ComboboxSearch
+              options={[{ value: 0, label: 'Todos' }, ...(tiposCaso?.map((t) => ({ value: t.id, label: t.codigo ? `${t.codigo} - ${t.descripcion ?? ''}` : (t.descripcion ?? '') })) ?? [])]}
+              value={pending.tipoCasoId ?? 0}
+              onChange={(v) => { setPendingFilter('tipoCasoId', v === 0 ? undefined : v); setPendingFilter('subTipoCasoId', undefined); }}
+              placeholder="Todos"
+              searchPlaceholder="Buscar tipo..."
+            />
+          </div>
+          <div className="w-52">
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Subtipo</label>
+            <ComboboxSearch
+              options={[{ value: 0, label: 'Todos' }, ...(subtipos?.map((s) => ({ value: s.id, label: s.codigo ? `${s.codigo} - ${s.descripcion ?? ''}` : (s.descripcion ?? '') })) ?? [])]}
+              value={pending.subTipoCasoId ?? 0}
+              onChange={(v) => setPendingFilter('subTipoCasoId', v === 0 ? undefined : v)}
+              placeholder="Todos"
+              searchPlaceholder="Buscar subtipo..."
+            />
+          </div>
+          <div className="w-40">
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Estado</label>
-            <Select onValueChange={(v) => updateFilter('situacionId', v === 'all' ? undefined : Number(v))}>
-              <SelectTrigger className="h-8 text-sm w-40"><SelectValue placeholder="Todos" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {estados?.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.descripcion}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ComboboxSearch
+              options={[{ value: 0, label: 'Todos' }, ...(estados?.map((e) => ({ value: e.id, label: e.descripcion ?? '' })) ?? [])]}
+              value={pending.situacionId ?? 0}
+              onChange={(v) => setPendingFilter('situacionId', v === 0 ? undefined : v)}
+              placeholder="Todos"
+              searchPlaceholder="Buscar estado..."
+            />
           </div>
-          <div>
+          <div className="w-40">
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Unidad</label>
-            <Select onValueChange={(v) => updateFilter('unidadId', v === 'all' ? undefined : Number(v))}>
-              <SelectTrigger className="h-8 text-sm w-40"><SelectValue placeholder="Todas" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {unidades?.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.descripcion}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ComboboxSearch
+              options={[{ value: 0, label: 'Todas' }, ...(unidades?.map((u) => ({ value: u.id, label: u.descripcion ?? '' })) ?? [])]}
+              value={pending.unidadId ?? 0}
+              onChange={(v) => { setPendingFilter('unidadId', v === 0 ? undefined : v); setPendingFilter('tipoCasoId', undefined); setPendingFilter('subTipoCasoId', undefined); }}
+              placeholder="Todas"
+              searchPlaceholder="Buscar unidad..."
+            />
           </div>
-          <div>
+          <div className="w-44">
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Jurisdicción</label>
-            <Select onValueChange={(v) => updateFilter('jurisdiccionId', v === 'all' ? undefined : Number(v))}>
-              <SelectTrigger className="h-8 text-sm w-40"><SelectValue placeholder="Todas" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {jurisdicciones?.map((j) => <SelectItem key={j.id} value={String(j.id)}>{j.descripcion || j.nombre}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ComboboxSearch
+              options={[{ value: 0, label: 'Todas' }, ...(jurisdicciones?.map((j) => ({ value: j.id, label: (j.nombre ?? j.descripcion) ?? '' })) ?? [])]}
+              value={pending.jurisdiccionId ?? 0}
+              onChange={(v) => setPendingFilter('jurisdiccionId', v === 0 ? undefined : v)}
+              placeholder="Todas"
+              searchPlaceholder="Buscar jurisdicción..."
+            />
           </div>
-          <div>
+          <div className="w-36">
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1 font-medium">Severidad</label>
-            <Select onValueChange={(v) => updateFilter('severidadId', v === 'all' ? undefined : Number(v))}>
-              <SelectTrigger className="h-8 text-sm w-36"><SelectValue placeholder="Todas" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {severidades?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ComboboxSearch
+              options={[{ value: 0, label: 'Todas' }, ...(severidades?.map((s) => ({ value: s.id, label: s.descripcion ?? '' })) ?? [])]}
+              value={pending.severidadId ?? 0}
+              onChange={(v) => setPendingFilter('severidadId', v === 0 ? undefined : v)}
+              placeholder="Todas"
+              searchPlaceholder="Buscar severidad..."
+            />
           </div>
-          <button
-            onClick={() => { setFilters({ page: 1, limit, search: undefined }); setSearchText(''); setFechaInicio(''); setFechaFin(''); }}
-            className="h-8 px-3 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-          >
-            Limpiar
-          </button>
+
+          {/* Acciones */}
+          <div className="flex items-center gap-2 pt-4">
+            <button
+              onClick={applyFilters}
+              className={`h-9 px-4 text-xs rounded font-semibold transition-colors
+                ${hasChanges
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
+              disabled={!hasChanges}
+            >
+              Aplicar filtros
+            </button>
+            <button
+              onClick={clearFilters}
+              className="h-9 px-3 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+            >
+              Limpiar
+            </button>
+          </div>
         </div>
       )}
 
@@ -232,9 +286,25 @@ export default function IncidenciasPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((inc: Incidencia, idx: number) => (
+                rows.map((inc: Incidencia, idx: number) => {
+                  const tipoCasoLabel = inc.tipoCaso
+                    ? (inc.tipoCaso.codigo ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion ?? ''}` : inc.tipoCaso.descripcion ?? '')
+                    : '';
+                  const subtipoLabel = inc.subTipoCaso
+                    ? (inc.subTipoCaso.codigo ? `${inc.subTipoCaso.codigo} - ${inc.subTipoCaso.descripcion ?? ''}` : inc.subTipoCaso.descripcion ?? '')
+                    : '';
+                  const tooltip = [
+                    inc.codigoIncidencia,
+                    tipoCasoLabel && `Tipo: ${tipoCasoLabel}`,
+                    subtipoLabel  && `Subtipo: ${subtipoLabel}`,
+                    inc.direccion && `Dirección: ${inc.direccion}`,
+                    inc.situacion?.descripcion && `Estado: ${inc.situacion.descripcion}`,
+                  ].filter(Boolean).join('\n');
+
+                  return (
                   <TableRow
                     key={inc.id}
+                    title={tooltip}
                     className={`cursor-pointer transition-colors hover:bg-green-50 dark:hover:bg-green-900/15 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/60 dark:bg-gray-800/40'}`}
                     onClick={() => router.push(`/incidencias/${inc.id}`)}
                   >
@@ -259,19 +329,14 @@ export default function IncidenciasPage() {
                     </TableCell>
 
                     <TableCell className="text-sm text-gray-700 dark:text-gray-300 py-2.5 max-w-0">
-                      <p className="truncate" title={
-                        inc.tipoCaso?.codigo
-                          ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}`
-                          : inc.tipoCaso?.descripcion || '-'
-                      }>
-                        {inc.tipoCaso
-                          ? (inc.tipoCaso.codigo ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion}` : inc.tipoCaso.descripcion) || '-'
-                          : '-'}
+                      <p className="truncate">
+                        {tipoCasoLabel || '-'}
+                        {subtipoLabel && <span className="text-gray-400 dark:text-gray-500"> · {subtipoLabel}</span>}
                       </p>
                     </TableCell>
 
                     <TableCell className="text-sm text-gray-600 py-2.5 max-w-0">
-                      <p className="truncate" title={inc.direccion || ''}>
+                      <p className="truncate">
                         {inc.direccion || '-'}
                       </p>
                     </TableCell>
@@ -284,7 +349,8 @@ export default function IncidenciasPage() {
                       <EstadoBadge estado={inc.situacion?.descripcion} />
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>

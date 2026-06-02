@@ -61,6 +61,7 @@ export function MultiSelectFilter({
       <button
         key={opt.id}
         type="button"
+        title={opt.label}
         onClick={() => toggle(opt.id)}
         className={cn(
           'flex w-full items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors',

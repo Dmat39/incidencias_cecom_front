@@ -212,7 +212,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <Filter className="h-3.5 w-3.5 text-gray-400 shrink-0" />
             <MultiSelectFilter
-              options={(todosTipos ?? []).map((t) => ({ id: t.id, label: t.descripcion ?? '' }))}
+              options={(todosTipos ?? []).map((t) => ({ id: t.id, label: t.codigo ? `${t.codigo} - ${t.descripcion ?? ''}` : (t.descripcion ?? '') }))}
               selected={tipoCasoIds}
               onChange={(ids) => { setTipoCasoIds(ids); setSubTipoCasoIds([]); }}
               placeholder="Tipo de caso"
@@ -220,7 +220,7 @@ export default function DashboardPage() {
               pluralLabel="tipos"
             />
             <MultiSelectFilter
-              options={subtipoGroups ? undefined : (todosSubtipos ?? []).map((s) => ({ id: s.id, label: s.descripcion ?? '' }))}
+              options={subtipoGroups ? undefined : (todosSubtipos ?? []).map((s) => ({ id: s.id, label: s.codigo ? `${s.codigo} - ${s.descripcion ?? ''}` : (s.descripcion ?? '') }))}
               groups={subtipoGroups}
               selected={subTipoCasoIds}
               onChange={setSubTipoCasoIds}
@@ -443,15 +443,28 @@ export default function DashboardPage() {
           <p className="text-center text-gray-400 text-sm py-6">No hay incidencias en el período</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(stats.recientes ?? []).map((inc: any) => (
-              <div key={inc.id} onClick={() => router.push(`/incidencias/${inc.id}`)}
+            {(stats.recientes ?? []).map((inc: any) => {
+              const tipoLabel = inc.tipoCaso?.codigo
+                ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion ?? ''}`
+                : (inc.tipoCaso?.descripcion || 'Sin tipo');
+              const subtipoLabel = inc.subTipoCaso?.descripcion ?? '';
+              const cardTooltip = [
+                inc.codigoIncidencia,
+                `Tipo: ${tipoLabel}`,
+                subtipoLabel && `Subtipo: ${subtipoLabel}`,
+                inc.direccion && `Dirección: ${inc.direccion}`,
+                inc.situacion?.descripcion && `Estado: ${inc.situacion.descripcion}`,
+              ].filter(Boolean).join('\n');
+
+              return (
+              <div key={inc.id} title={cardTooltip} onClick={() => router.push(`/incidencias/${inc.id}`)}
                 className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 hover:border-green-300 dark:hover:border-green-700 cursor-pointer transition-colors group">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 font-mono group-hover:text-green-700 dark:group-hover:text-green-400">
                     {inc.codigoIncidencia || `#${inc.id}`}
                   </p>
                   <p className="text-xs text-gray-400 truncate">
-                    {inc.tipoCaso?.descripcion || 'Sin tipo'}{inc.direccion ? ` · ${inc.direccion}` : ''}
+                    {tipoLabel}{subtipoLabel ? ` · ${subtipoLabel}` : ''}{inc.direccion ? ` · ${inc.direccion}` : ''}
                   </p>
                 </div>
                 <div className="ml-3 flex-shrink-0 flex flex-col items-end gap-1">
@@ -459,7 +472,8 @@ export default function DashboardPage() {
                   <span className="text-xs text-gray-400">{inc.registradoEn ? formatDate(inc.registradoEn, 'dd/MM HH:mm') : ''}</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </SectionCard>
