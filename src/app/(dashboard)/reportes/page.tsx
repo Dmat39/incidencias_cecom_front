@@ -11,7 +11,8 @@ import { FileDown, FileBarChart, MapPin, Pencil, CheckCircle } from 'lucide-reac
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
-import { useUnidades, useEstadoIncidencias, useTipoCasos, useTipoCasosByUnidad, useSubTipoCasos, useSubTipoCasosByTipo, useJurisdicciones } from '@/hooks/useCatalogos';
+import { useUnidades, useEstadoIncidencias, useTipoCasos, useTipoCasosByUnidad, useSubTipoCasos, useJurisdicciones } from '@/hooks/useCatalogos';
+import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
 
 const MapZonaPicker = dynamic(
   () => import('@/components/reportes/MapZonaPicker'),
@@ -23,8 +24,8 @@ interface ReportFilter {
   fechaFin?: string;
   unidadId?: number;
   situacionId?: number;
-  tipoCasoId?: number;
-  subTipoCasoId?: number;
+  tipoCasoIds?: number[];
+  subTipoCasoIds?: number[];
   jurisdiccionId?: number;
 }
 
@@ -40,15 +41,26 @@ export default function ReportesPage() {
   const [showMap, setShowMap] = useState(false);
   const [customPolygon, setCustomPolygon] = useState<[number, number][] | null>(null);
 
-  const { data: unidades }      = useUnidades();
+  const { data: unidades }       = useUnidades();
   const { data: jurisdicciones } = useJurisdicciones();
-  const { data: estados }       = useEstadoIncidencias();
-  const { data: todosTipos }    = useTipoCasos();
+  const { data: estados }        = useEstadoIncidencias();
+  const { data: todosTipos }     = useTipoCasos();
   const { data: tiposPorUnidad } = useTipoCasosByUnidad(filters.unidadId);
   const tiposCaso = filters.unidadId ? tiposPorUnidad : todosTipos;
-  const { data: todosSubtipos }   = useSubTipoCasos();
-  const { data: subtiposPorTipo } = useSubTipoCasosByTipo(filters.tipoCasoId);
-  const subtipos = filters.tipoCasoId ? subtiposPorTipo : todosSubtipos;
+  const { data: todosSubtipos }  = useSubTipoCasos();
+
+  // Subtipos agrupados cuando hay tipos seleccionados
+  const subtipoGroups = (() => {
+    const all = todosSubtipos ?? [];
+    const selectedTipos = filters.tipoCasoIds ?? [];
+    if (selectedTipos.length === 0) return undefined;
+    const delTipo = all.filter((s) => s.tipoCasoId && selectedTipos.includes(s.tipoCasoId));
+    const otros   = all.filter((s) => !s.tipoCasoId || !selectedTipos.includes(s.tipoCasoId));
+    const grupos = [];
+    if (delTipo.length > 0) grupos.push({ label: 'De los tipos seleccionados', options: delTipo.map((s) => ({ id: s.id, label: s.descripcion ?? '' })) });
+    if (otros.length   > 0) grupos.push({ label: 'Otros subtipos',             options: otros.map((s)    => ({ id: s.id, label: s.descripcion ?? '' })) });
+    return grupos;
+  })();
 
   function handlePolygonConfirm(polygon: [number, number][]) {
     setCustomPolygon(polygon);
@@ -126,7 +138,7 @@ export default function ReportesPage() {
             </div>
             <div className="space-y-1">
               <Label>Unidad</Label>
-              <Select onValueChange={(v) => setFilters((f) => ({ ...f, unidadId: v === 'all' ? undefined : Number(v), tipoCasoId: undefined, subTipoCasoId: undefined }))}>
+              <Select onValueChange={(v) => setFilters((f) => ({ ...f, unidadId: v === 'all' ? undefined : Number(v), tipoCasoIds: undefined, subTipoCasoIds: undefined }))}>
                 <SelectTrigger><SelectValue placeholder="Todas las unidades" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
@@ -146,29 +158,28 @@ export default function ReportesPage() {
             </div>
             <div className="space-y-1">
               <Label>Tipo de caso</Label>
-              <Select
-                value={filters.tipoCasoId ? String(filters.tipoCasoId) : 'all'}
-                onValueChange={(v) => setFilters((f) => ({ ...f, tipoCasoId: v === 'all' ? undefined : Number(v), subTipoCasoId: undefined }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Todos los tipos" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {tiposCaso?.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.descripcion}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                options={(tiposCaso ?? []).map((t) => ({ id: t.id, label: t.codigo ? `${t.codigo} - ${t.descripcion ?? ''}` : (t.descripcion ?? '') }))}
+                selected={filters.tipoCasoIds ?? []}
+                onChange={(ids) => setFilters((f) => ({ ...f, tipoCasoIds: ids.length ? ids : undefined, subTipoCasoIds: undefined }))}
+                placeholder="Todos los tipos"
+                singularLabel="tipo"
+                pluralLabel="tipos"
+                className="w-full"
+              />
             </div>
             <div className="space-y-1">
               <Label>Subtipo de caso</Label>
-              <Select
-                value={filters.subTipoCasoId ? String(filters.subTipoCasoId) : 'all'}
-                onValueChange={(v) => setFilters((f) => ({ ...f, subTipoCasoId: v === 'all' ? undefined : Number(v) }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Todos los subtipos" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {subtipos?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                options={subtipoGroups ? undefined : (todosSubtipos ?? []).map((s) => ({ id: s.id, label: s.descripcion ?? '' }))}
+                groups={subtipoGroups}
+                selected={filters.subTipoCasoIds ?? []}
+                onChange={(ids) => setFilters((f) => ({ ...f, subTipoCasoIds: ids.length ? ids : undefined }))}
+                placeholder="Todos los subtipos"
+                singularLabel="subtipo"
+                pluralLabel="subtipos"
+                className="w-full"
+              />
             </div>
             <div className="space-y-1">
               <Label>Estado</Label>

@@ -20,13 +20,13 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuthStore();
+  const { login, isAuthenticated, _hasHydrated } = useAuthStore();
   const [showPass, setShowPass] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace('/dashboard');
-  }, [isAuthenticated, router]);
+    if (_hasHydrated && isAuthenticated) router.replace('/dashboard');
+  }, [isAuthenticated, _hasHydrated, router]);
 
   useEffect(() => {
     const saved = localStorage.getItem('cecom_remembered_user');

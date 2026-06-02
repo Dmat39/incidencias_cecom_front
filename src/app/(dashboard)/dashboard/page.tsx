@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useIncidenciasStats } from '@/hooks/useIncidencias';
 import { useSocket } from '@/hooks/useSocket';
@@ -23,6 +22,7 @@ import { usePanicoStats } from '@/hooks/usePanicoAlertas';
 import { useTipoCasos, useSubTipoCasos } from '@/hooks/useCatalogos';
 import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
 import { useAuthStore } from '@/store/authStore';
+import { useDashboardStore } from '@/store/dashboardStore';
 import Link from 'next/link';
 import type { Incidencia } from '@/types';
 
@@ -31,16 +31,11 @@ import type { Incidencia } from '@/types';
 function todayLima() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Lima' });
 }
-function getWeekStart() {
+function getLast30DaysStart() {
   const today = todayLima();
   const ref = new Date(today + 'T12:00:00Z');
-  const day = ref.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  ref.setDate(ref.getDate() + diff);
+  ref.setDate(ref.getDate() - 29);
   return ref.toISOString().split('T')[0];
-}
-function getMonthStart() {
-  return todayLima().slice(0, 8) + '01';
 }
 const TODAY = todayLima();
 
@@ -115,10 +110,14 @@ export default function DashboardPage() {
   const modulosPermitidos = useAuthStore((s) => s.modulosPermitidos);
   const puedeVerPanico = modulosPermitidos.includes('alertas');
 
-  const [fechaInicio, setFechaInicio] = useState(getWeekStart());
-  const [fechaFin, setFechaFin]       = useState(TODAY);
-  const [tipoCasoIds, setTipoCasoIds]       = useState<number[]>([]);
-  const [subTipoCasoIds, setSubTipoCasoIds] = useState<number[]>([]);
+  const {
+    fechaInicio, fechaFin,
+    pendingInicio, pendingFin, hasDateChanges,
+    tipoCasoIds, subTipoCasoIds,
+    setPendingInicio, setPendingFin, setHasDateChanges,
+    setTipoCasoIds, setSubTipoCasoIds,
+    applyDates, applyQuickRange, clearFilters,
+  } = useDashboardStore();
 
   const { data: todosTipos }    = useTipoCasos();
   const { data: todosSubtipos } = useSubTipoCasos();
@@ -186,23 +185,33 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Desde</label>
-            <input type="date" value={fechaInicio} max={fechaFin}
-              onChange={(e) => setFechaInicio(e.target.value)}
+            <input type="date" value={pendingInicio} max={pendingFin}
+              onChange={(e) => { setPendingInicio(e.target.value); setHasDateChanges(true); }}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-xs bg-white dark:bg-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Hasta</label>
-            <input type="date" value={fechaFin} min={fechaInicio} max={TODAY}
-              onChange={(e) => setFechaFin(e.target.value)}
+            <input type="date" value={pendingFin} min={pendingInicio} max={TODAY}
+              onChange={(e) => { setPendingFin(e.target.value); setHasDateChanges(true); }}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-xs bg-white dark:bg-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
+          <button
+            onClick={applyDates}
+            disabled={!hasDateChanges}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+              hasDateChanges
+                ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-not-allowed'
+            }`}
+          >
+            Aplicar
+          </button>
           <div className="flex gap-1.5">
             {[
-              { label: 'Hoy',    fn: () => { setFechaInicio(TODAY); setFechaFin(TODAY); } },
-              { label: 'Semana', fn: () => { setFechaInicio(getWeekStart()); setFechaFin(TODAY); } },
-              { label: 'Mes',    fn: () => { setFechaInicio(getMonthStart()); setFechaFin(TODAY); } },
+              { label: 'Hoy',     fn: () => applyQuickRange(TODAY, TODAY) },
+              { label: '30 días', fn: () => applyQuickRange(getLast30DaysStart(), TODAY) },
             ].map(({ label, fn }) => (
               <button key={label} onClick={fn} className={`${quickBtn} ${quickBtnIdle}`}>{label}</button>
             ))}
@@ -247,6 +256,13 @@ export default function DashboardPage() {
               {subTipoCasoIds.length} {subTipoCasoIds.length === 1 ? 'subtipo' : 'subtipos'}
             </span>
           )}
+          <button
+            onClick={clearFilters}
+            className="ml-auto flex items-center gap-1 text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Limpiar filtros
+          </button>
         </div>
       )}
 
