@@ -1,11 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Incidencia } from '@/types';
 import { formatDate } from '@/lib/date';
+import type { CamaraCercana } from '@/hooks/useCamarasCercanas';
 
 // Fix default Leaflet icons
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -52,16 +53,38 @@ function SetView({ center, zoom }: { center: [number, number]; zoom: number }) {
   return null;
 }
 
+function createCameraIcon(tipo: 'municipal' | 'vecinal') {
+  const color = tipo === 'municipal' ? '#3b82f6' : '#8b5cf6';
+  return L.divIcon({
+    html: `<div style="
+      width:28px;height:28px;border-radius:50%;
+      background:${color};border:3px solid white;
+      box-shadow:0 2px 6px rgba(0,0,0,.35);
+      display:flex;align-items:center;justify-content:center;
+    ">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 10l4.553-2.277A1 1 0 0121 8.72v6.56a1 1 0 01-1.447.898L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
+      </svg>
+    </div>`,
+    className: '',
+    iconSize:   [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor:[0, -18],
+  });
+}
+
 interface Props {
   incidencias: Incidencia[];
   center?: [number, number];
   zoom?: number;
+  camaras?: CamaraCercana[];
+  radioMetros?: number;
 }
 
 // San Juan de Lurigancho — igual que SGDH-FRONT
 const DEFAULT_CENTER: [number, number] = [-11.9699, -76.998];
 
-export default function MapView({ incidencias, center, zoom = 13 }: Props) {
+export default function MapView({ incidencias, center, zoom = 13, camaras, radioMetros }: Props) {
   const router = useRouter();
 
   return (
@@ -79,6 +102,43 @@ export default function MapView({ incidencias, center, zoom = 13 }: Props) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {center && <SetView center={center} zoom={zoom} />}
+
+      {/* Círculo de radio de búsqueda de cámaras */}
+      {center && radioMetros && (
+        <Circle
+          center={center}
+          radius={radioMetros}
+          pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.06, weight: 1.5, dashArray: '6 4' }}
+        />
+      )}
+
+      {/* Marcadores de cámaras cercanas */}
+      {(camaras ?? []).map((cam) => (
+        <Marker
+          key={cam.id}
+          position={[cam.latitude, cam.longitude]}
+          icon={createCameraIcon(cam.tipo)}
+        >
+          <Popup maxWidth={220}>
+            <div style={{ fontFamily: 'inherit', fontSize: 13 }}>
+              <p style={{ fontWeight: 700, color: '#1f2937', marginBottom: 4 }}>
+                {cam.tipo === 'municipal' ? 'Cámara Municipal' : 'Cámara Vecinal'}
+              </p>
+              {cam.nombre && (
+                <p style={{ color: '#374151', fontWeight: 600, marginBottom: 4 }}>{cam.nombre}</p>
+              )}
+              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>📍 {cam.direccion}</p>
+              {cam.tipoCamara && (
+                <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>Tipo: {cam.tipoCamara}</p>
+              )}
+              {cam.marca && (
+                <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>Marca: {cam.marca}</p>
+              )}
+              <p style={{ fontSize: 11, color: '#9ca3af' }}>{cam.distanciaM.toFixed(0)} m de distancia</p>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
 
       {incidencias.map((inc) => {
         const lat = inc.latitud ? Number(inc.latitud) : null;
