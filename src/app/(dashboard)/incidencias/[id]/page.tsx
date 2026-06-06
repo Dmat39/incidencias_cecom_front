@@ -165,6 +165,16 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
   function isImage(nombre: string) { return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(nombre); }
   function isVideo(nombre: string) { return /\.(mp4|webm|ogg|avi|mov)$/i.test(nombre); }
 
+  const RADIO_CAMARAS = 500;
+  const esDePanico = inc?.descripcion?.includes('BOTÓN DE PÁNICO') ?? false;
+  const latHook = inc?.latitud ? Number(inc.latitud) : null;
+  const lngHook = inc?.longitud ? Number(inc.longitud) : null;
+  const { data: camarasCercanas = [] } = useCamarasCercanas(
+    esDePanico ? latHook : null,
+    esDePanico ? lngHook : null,
+    RADIO_CAMARAS,
+  );
+
   if (isLoading) {
     return <div className="space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></div>;
   }
@@ -224,14 +234,6 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
   const lat = inc.latitud ? Number(inc.latitud) : undefined;
   const lng = inc.longitud ? Number(inc.longitud) : undefined;
-
-  const esDePanico = inc.descripcion?.includes('BOTÓN DE PÁNICO') ?? false;
-  const RADIO_CAMARAS = 500;
-  const { data: camarasCercanas = [] } = useCamarasCercanas(
-    esDePanico ? lat : null,
-    esDePanico ? lng : null,
-    RADIO_CAMARAS,
-  );
 
   return (
     <div className="max-w-5xl space-y-4">
