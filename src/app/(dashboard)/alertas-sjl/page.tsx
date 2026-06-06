@@ -209,7 +209,7 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
     if (!alerta.latitud || !alerta.longitud) return;
     setCamarasCargando(true);
     fetch(
-      `http://localhost:3005/api/camaras/cercanas?lat=${alerta.latitud}&lng=${alerta.longitud}&radio=500`,
+      `${process.env.NEXT_PUBLIC_SIVECAM_API_URL}/api/camaras/cercanas?lat=${alerta.latitud}&lng=${alerta.longitud}&radio=500`,
     )
       .then((r) => r.json())
       .then((data) => setCamaras(Array.isArray(data) ? data : (data?.data ?? [])))
