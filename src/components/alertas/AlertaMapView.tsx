@@ -129,13 +129,89 @@ export interface CamaraCercana {
   distanciaM: number;
 }
 
+export interface RadioCercana {
+  issi: string;
+  unicocodigo?: string;
+  estado?: string;
+  hexacolor?: string;
+  direccion?: string;
+  latitud: number;
+  longitud: number;
+  distancia_metros: number;
+}
+
+function isHexRedDominant(hex?: string): boolean {
+  if (!hex) return false;
+  const h = hex.replace('#', '');
+  if (h.length < 6) return false;
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return r > 150 && r > g * 1.5 && r > b * 1.5;
+}
+
+function makeRadioIcon(zoom: number, hexacolor?: string) {
+  const s      = zoomScale(zoom);
+  const pinW   = Math.max(6, Math.round(32 * s));
+  const pinH   = Math.max(7, Math.round(38 * s));
+  const squSz  = Math.round(32 * s);
+  const svgSz  = Math.max(4, Math.round(13 * s));
+  const border = Math.max(1, Math.round(2.5 * s));
+
+  const showIcon = pinW >= 14;
+
+  const apagada  = isHexRedDominant(hexacolor);
+  const bg       = apagada ? 'linear-gradient(135deg,#f87171,#dc2626)' : 'linear-gradient(135deg,#4ade80,#16a34a)';
+  const glow     = apagada ? 'rgba(220,38,38,.45)'                     : 'rgba(22,163,74,.45)';
+  const borderC  = apagada ? '#fca5a5'                                  : '#86efac';
+
+  return L.divIcon({
+    html: `
+      <div style="position:relative;width:${pinW}px;height:${pinH}px;transition:all .15s;">
+        <div style="
+          position:absolute;top:0;left:0;width:${squSz}px;height:${squSz}px;
+          border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg);
+          background:${bg};
+          border:${border}px solid ${borderC};
+          box-shadow:0 4px 12px ${glow};
+        "></div>
+        ${showIcon ? `
+        <div style="
+          position:absolute;top:${Math.round(4 * s)}px;left:${Math.round(4 * s)}px;
+          width:${Math.round(24 * s)}px;height:${Math.round(24 * s)}px;
+          display:flex;align-items:center;justify-content:center;">
+          <svg xmlns='http://www.w3.org/2000/svg' width='${svgSz}' height='${svgSz}' viewBox='0 0 24 24'
+            fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'>
+            <rect x='7' y='2' width='10' height='20' rx='2'/>
+            <line x1='10' y1='2' x2='10' y2='0'/>
+            <line x1='14' y1='2' x2='14' y2='0'/>
+            <line x1='9' y1='8' x2='15' y2='8'/>
+            <line x1='9' y1='10' x2='15' y2='10'/>
+            <circle cx='12' cy='16' r='2' fill='white' stroke='none'/>
+          </svg>
+        </div>` : ''}
+        <div style="
+          position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+          width:${Math.max(2, Math.round(6 * s))}px;height:${Math.max(2, Math.round(6 * s))}px;
+          border-radius:50%;background:${glow};filter:blur(2px);
+        "></div>
+      </div>`,
+    className: '',
+    iconSize:   [pinW, pinH],
+    iconAnchor: [Math.round(pinW / 2), pinH - 1],
+    popupAnchor: [0, -pinH],
+  });
+}
+
 interface Props {
   lat: number;
   lng: number;
   camaras?: CamaraCercana[];
+  radios?: RadioCercana[];
 }
 
-export default function AlertaMapView({ lat, lng, camaras = [] }: Props) {
+export default function AlertaMapView({ lat, lng, camaras = [], radios = [] }: Props) {
   const [zoom, setZoom] = useState(17);
 
   return (
@@ -154,6 +230,92 @@ export default function AlertaMapView({ lat, lng, camaras = [] }: Props) {
 
       {/* Marcador de la alerta */}
       <Marker position={[lat, lng]} icon={makePanicIcon(zoom)} />
+
+      {/* Marcadores de radios GPS */}
+      {radios.map((radio) => {
+        const apagada  = isHexRedDominant(radio.hexacolor);
+        const pinColor = apagada ? '#dc2626' : '#16a34a';
+        return (
+          <Marker
+            key={radio.issi}
+            position={[radio.latitud, radio.longitud]}
+            icon={makeRadioIcon(zoom, radio.hexacolor)}
+          >
+            <Popup minWidth={200} maxWidth={240}>
+              <div style={{ fontFamily: 'system-ui,sans-serif', margin: '-4px -4px' }}>
+                <div style={{
+                  background: pinColor,
+                  padding: '8px 12px',
+                  borderRadius: '6px 6px 0 0',
+                  display: 'flex', alignItems: 'center', gap: 7,
+                }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                    fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="7" y="2" width="10" height="20" rx="2"/>
+                    <line x1="10" y1="2" x2="10" y2="0"/>
+                    <line x1="14" y1="2" x2="14" y2="0"/>
+                    <line x1="9" y1="8" x2="15" y2="8"/>
+                    <line x1="9" y1="10" x2="15" y2="10"/>
+                    <circle cx="12" cy="16" r="2" fill="white" stroke="none"/>
+                  </svg>
+                  <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>
+                    {radio.unicocodigo ?? radio.issi}
+                  </span>
+                </div>
+                <div style={{ padding: '10px 12px', background: 'white', borderRadius: '0 0 6px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {radio.estado && (
+                    <div>
+                      <span style={{
+                        display: 'inline-block',
+                        background: pinColor + '22', color: pinColor,
+                        fontSize: 10, fontWeight: 700,
+                        padding: '2px 7px', borderRadius: 20,
+                        letterSpacing: '0.04em',
+                      }}>
+                        {radio.estado}
+                      </span>
+                    </div>
+                  )}
+                  {/* ISSI */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                      fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>ISSI: <strong style={{ color: '#374151' }}>{radio.issi}</strong></span>
+                  </div>
+                  {/* Ubicación */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                      fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ marginTop: 1, flexShrink: 0 }}>
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                      {radio.latitud.toFixed(5)}, {radio.longitud.toFixed(5)}
+                      {radio.direccion ? <><br /><span style={{ color: '#9ca3af' }}>Rumbo: {radio.direccion}</span></> : null}
+                    </span>
+                  </div>
+                  {/* Distancia */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    background: '#f9fafb', borderRadius: 6, padding: '4px 8px',
+                    border: '1px solid #f3f4f6',
+                  }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                      fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>
+                      A <strong style={{ color: '#dc2626' }}>{radio.distancia_metros} m</strong> de la alerta
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
 
       {/* Marcadores de cámaras */}
       {camaras.map((cam) => {

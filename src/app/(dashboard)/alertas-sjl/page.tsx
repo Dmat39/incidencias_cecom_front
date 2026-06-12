@@ -218,6 +218,30 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerta.id]);
 
+  // Radios GPS cercanas desde SIVECAM — con polling para actualizar posiciones
+  const [radios, setRadios] = useState<any[]>([]);
+  const [radiosCargando, setRadiosCargando] = useState(false);
+
+  useEffect(() => {
+    if (!alerta.latitud || !alerta.longitud) return;
+
+    const url = `${process.env.NEXT_PUBLIC_SIVECAM_API_URL}/api/radios/cercanas?lat=${alerta.latitud}&lng=${alerta.longitud}&radio=500`;
+
+    const fetchRadios = (inicial = false) => {
+      if (inicial) setRadiosCargando(true);
+      fetch(url)
+        .then((r) => r.json())
+        .then((data) => setRadios(Array.isArray(data) ? data : (data?.data ?? [])))
+        .catch(() => {})
+        .finally(() => { if (inicial) setRadiosCargando(false); });
+    };
+
+    fetchRadios(true);
+    const interval = setInterval(() => fetchRadios(false), 15_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerta.id]);
+
   // Sync local estado when parent updates (e.g. otro operador tomó la alerta via WebSocket)
   useEffect(() => {
     setEstadoPanico(alerta.estadoApp ?? null);
@@ -406,7 +430,7 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
               </p>
             )}
 
-            {/* Mapa con cámaras cercanas */}
+            {/* Mapa con cámaras y radios cercanas */}
             {tieneGps && (
               <div className="space-y-1">
                 <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 h-72">
@@ -414,10 +438,11 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
                     lat={alerta.latitud!}
                     lng={alerta.longitud!}
                     camaras={camaras}
+                    radios={radios}
                   />
                 </div>
                 {/* Leyenda */}
-                <div className="flex items-center gap-4 px-1">
+                <div className="flex items-center flex-wrap gap-x-4 gap-y-1 px-1">
                   <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
                     <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
                     Alerta
@@ -435,6 +460,15 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
                           Vecinal ({camaras.filter(c => c.tipo === 'vecinal').length})
                         </span>
                       </>
+                    )
+                  }
+                  {radiosCargando
+                    ? <span className="text-[10px] text-gray-400 animate-pulse">Buscando radios...</span>
+                    : radios.length > 0 && (
+                      <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                        <span className="inline-block w-3 h-3 rounded bg-green-500" />
+                        Radios ({radios.length})
+                      </span>
                     )
                   }
                 </div>
