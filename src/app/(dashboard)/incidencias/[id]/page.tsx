@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useIncidencia, useUpdateAtencion, useUpdateIncidencia, useAssignSerenos, useUploadEvidencia, useEvidencias } from '@/hooks/useIncidencias';
+import { useCamarasCercanas } from '@/hooks/useCamarasCercanas';
 import { useSerenosActivos } from '@/hooks/useSerenos';
 import {
   useEstadoIncidencias, useEstadoProcesos, useGeneroAgresor,
@@ -163,6 +164,16 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
 
   function isImage(nombre: string) { return /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(nombre); }
   function isVideo(nombre: string) { return /\.(mp4|webm|ogg|avi|mov)$/i.test(nombre); }
+
+  const RADIO_CAMARAS = 500;
+  const esDePanico = inc?.descripcion?.includes('BOTÓN DE PÁNICO') ?? false;
+  const latHook = inc?.latitud ? Number(inc.latitud) : null;
+  const lngHook = inc?.longitud ? Number(inc.longitud) : null;
+  const { data: camarasCercanas = [] } = useCamarasCercanas(
+    esDePanico ? latHook : null,
+    esDePanico ? lngHook : null,
+    RADIO_CAMARAS,
+  );
 
   if (isLoading) {
     return <div className="space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></div>;
@@ -457,7 +468,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                           }));
                         }}
                         onLoading={setMapLoading}
-                        activeJurisdiccionName={inc?.jurisdiccion?.nombre}
+                        activeJurisdiccionName={inc?.jurisdiccion?.nombre ?? undefined}
                       />
                     </div>
                     <p className="text-xs text-gray-400">Haz clic en el mapa para actualizar la ubicación y dirección automáticamente.</p>
@@ -489,6 +500,12 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                     <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Canal</p>
                     <DataRow label="Medio" value={inc.medio?.descripcion} />
                     <DataRow label="Operador" value={inc.operador?.descripcion} />
+                    <DataRow
+                      label="Registrado por"
+                      value={(inc as any).usuario
+                        ? `${(inc as any).usuario.nombres ?? ''} ${(inc as any).usuario.apellidos ?? ''}`.trim() || (inc as any).usuario.username
+                        : undefined}
+                    />
                   </div>
                   <div className="space-y-2 mt-4">
                     <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Reportante</p>
@@ -799,12 +816,30 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
         {/* TAB: Mapa */}
         <TabsContent value="mapa">
           <Card className="border border-gray-200 dark:border-gray-700">
+            {esDePanico && camarasCercanas.length > 0 && (
+              <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                  {camarasCercanas.length} cámara{camarasCercanas.length !== 1 ? 's' : ''} en radio de {RADIO_CAMARAS} m
+                </span>
+                <span className="text-xs text-gray-400">
+                  · {camarasCercanas.filter(c => c.tipo === 'municipal').length} municipal{camarasCercanas.filter(c => c.tipo === 'municipal').length !== 1 ? 'es' : ''}
+                  · {camarasCercanas.filter(c => c.tipo === 'vecinal').length} vecinal{camarasCercanas.filter(c => c.tipo === 'vecinal').length !== 1 ? 'es' : ''}
+                </span>
+              </div>
+            )}
+            {esDePanico && camarasCercanas.length === 0 && lat && lng && (
+              <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-xs text-gray-400">Sin cámaras registradas en radio de {RADIO_CAMARAS} m</span>
+              </div>
+            )}
             <CardContent className="p-0 h-96 rounded-lg overflow-hidden">
               {lat && lng ? (
                 <MapView
                   incidencias={[inc]}
                   center={[lat, lng]}
                   zoom={16}
+                  camaras={esDePanico ? camarasCercanas : undefined}
+                  radioMetros={esDePanico ? RADIO_CAMARAS : undefined}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-400">

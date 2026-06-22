@@ -20,13 +20,13 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuthStore();
+  const { login, isAuthenticated, _hasHydrated } = useAuthStore();
   const [showPass, setShowPass] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace('/dashboard');
-  }, [isAuthenticated, router]);
+    if (_hasHydrated && isAuthenticated) router.replace('/dashboard');
+  }, [isAuthenticated, _hasHydrated, router]);
 
   useEffect(() => {
     const saved = localStorage.getItem('cecom_remembered_user');
@@ -51,12 +51,12 @@ export default function LoginPage() {
       const { data } = await api.post<ApiResponse<{
         accessToken: string;
         refreshToken: string;
-        usuario: { id: number; username: string; email: string; nombre?: string; roles: string[] };
+        usuario: { id: number; username: string; email: string; nombres?: string; apellidos?: string; roles: string[] };
       }>>('/auth/login', values);
 
       const { accessToken, refreshToken, usuario } = data.data;
       login(
-        { id: usuario.id, username: usuario.username, email: usuario.email, nombres: usuario.nombre, roles: usuario.roles },
+        { id: usuario.id, username: usuario.username, email: usuario.email, nombres: usuario.nombres, apellidos: usuario.apellidos, roles: usuario.roles },
         accessToken,
         refreshToken,
       );

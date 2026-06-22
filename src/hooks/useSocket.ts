@@ -4,10 +4,10 @@ import { useEffect, useCallback } from 'react';
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
 import type { Incidencia } from '@/types';
 
-type SocketEvent = 'nueva-incidencia' | 'incidencia-actualizada' | 'incidencia-atendida' | 'incidencia-cerrada';
+type SocketEvent = 'nueva-incidencia' | 'incidencia-actualizada' | 'incidencia-atendida' | 'incidencia-cerrada' | 'alerta-panico-nueva' | 'alerta-panico-actualizada' | 'alerta-panico-tomada' | 'alerta-panico-liberada';
 
 export function useSocket(
-  events?: Partial<Record<SocketEvent, (data: Incidencia) => void>>
+  events?: Partial<Record<SocketEvent, (data: any) => void>>
 ) {
   useEffect(() => {
     connectSocket();

@@ -17,6 +17,7 @@ export interface UsuarioAuth {
   nombres?: string;
   apellidos?: string;
   roles: string[];
+  jurisdiccionesAsignadas?: number[];
 }
 
 export interface AuthState {
@@ -74,8 +75,8 @@ export interface Operador extends CatalogoBase {
 
 export interface Jurisdiccion {
   id: number;
-  codigo?: string;
-  nombre?: string;
+  nombre?: string | null;
+  codigo?: string | null;
   habilitado?: boolean;
 }
 
@@ -245,6 +246,8 @@ export interface FilterIncidenciaDto {
   unidadId?: number;
   jurisdiccionId?: number;
   severidadId?: number;
+  tipoCasoId?: number;
+  subTipoCasoId?: number;
   page?: number;
   limit?: number;
 }

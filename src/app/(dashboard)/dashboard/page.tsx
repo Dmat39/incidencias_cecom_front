@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useIncidenciasStats } from '@/hooks/useIncidencias';
 import { useSocket } from '@/hooks/useSocket';
@@ -17,24 +16,26 @@ import { useTheme } from 'next-themes';
 import { formatDate } from '@/lib/date';
 import {
   AlertTriangle, Clock, CheckCircle, XCircle, TrendingUp,
-  Sun, Sunset, Moon, ShieldAlert, Activity,
+  Sun, Sunset, Moon, ShieldAlert, Activity, Smartphone, Filter, X,
 } from 'lucide-react';
+import { usePanicoStats } from '@/hooks/usePanicoAlertas';
+import { useTipoCasos, useSubTipoCasos } from '@/hooks/useCatalogos';
+import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
+import { useAuthStore } from '@/store/authStore';
+import { useDashboardStore } from '@/store/dashboardStore';
+import Link from 'next/link';
 import type { Incidencia } from '@/types';
+
 
 // ── Zona horaria Lima ────────────────────────────────────────────────────────
 function todayLima() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Lima' });
 }
-function getWeekStart() {
+function getLast30DaysStart() {
   const today = todayLima();
   const ref = new Date(today + 'T12:00:00Z');
-  const day = ref.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  ref.setDate(ref.getDate() + diff);
+  ref.setDate(ref.getDate() - 29);
   return ref.toISOString().split('T')[0];
-}
-function getMonthStart() {
-  return todayLima().slice(0, 8) + '01';
 }
 const TODAY = todayLima();
 
@@ -106,10 +107,35 @@ export default function DashboardPage() {
     legend:  dark ? '#d1d5db' : '#374151',
   };
 
-  const [fechaInicio, setFechaInicio] = useState(getWeekStart());
-  const [fechaFin, setFechaFin]       = useState(TODAY);
+  const modulosPermitidos = useAuthStore((s) => s.modulosPermitidos);
+  const puedeVerPanico = modulosPermitidos.includes('alertas');
 
-  const { data: stats, isLoading } = useIncidenciasStats(fechaInicio, fechaFin);
+  const {
+    fechaInicio, fechaFin,
+    pendingInicio, pendingFin, hasDateChanges,
+    tipoCasoIds, subTipoCasoIds,
+    setPendingInicio, setPendingFin, setHasDateChanges,
+    setTipoCasoIds, setSubTipoCasoIds,
+    applyDates, applyQuickRange, clearFilters,
+  } = useDashboardStore();
+
+  const { data: todosTipos }    = useTipoCasos();
+  const { data: todosSubtipos } = useSubTipoCasos();
+
+  // Subtipos agrupados: primero los del tipo seleccionado, luego el resto
+  const subtipoGroups = (() => {
+    const all = todosSubtipos ?? [];
+    if (tipoCasoIds.length === 0) return undefined; // sin tipos → lista plana
+    const delTipo  = all.filter((s) => s.tipoCasoId && tipoCasoIds.includes(s.tipoCasoId));
+    const otros    = all.filter((s) => !s.tipoCasoId || !tipoCasoIds.includes(s.tipoCasoId));
+    const grupos = [];
+    if (delTipo.length > 0) grupos.push({ label: 'De los tipos seleccionados', options: delTipo.map((s) => ({ id: s.id, label: s.descripcion ?? '' })) });
+    if (otros.length   > 0) grupos.push({ label: 'Otros subtipos',             options: otros.map((s)    => ({ id: s.id, label: s.descripcion ?? '' })) });
+    return grupos;
+  })();
+
+  const { data: stats, isLoading } = useIncidenciasStats(fechaInicio, fechaFin, tipoCasoIds, subTipoCasoIds);
+  const { data: panicoStats, isLoading: panicoLoading } = usePanicoStats();
 
   useSocket({
     'nueva-incidencia': (inc: Incidencia) => {
@@ -159,29 +185,86 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Desde</label>
-            <input type="date" value={fechaInicio} max={fechaFin}
-              onChange={(e) => setFechaInicio(e.target.value)}
+            <input type="date" value={pendingInicio} max={pendingFin}
+              onChange={(e) => { setPendingInicio(e.target.value); setHasDateChanges(true); }}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-xs bg-white dark:bg-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Hasta</label>
-            <input type="date" value={fechaFin} min={fechaInicio} max={TODAY}
-              onChange={(e) => setFechaFin(e.target.value)}
+            <input type="date" value={pendingFin} min={pendingInicio} max={TODAY}
+              onChange={(e) => { setPendingFin(e.target.value); setHasDateChanges(true); }}
               className="border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-xs bg-white dark:bg-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
+          <button
+            onClick={applyDates}
+            disabled={!hasDateChanges}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+              hasDateChanges
+                ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-not-allowed'
+            }`}
+          >
+            Aplicar
+          </button>
           <div className="flex gap-1.5">
             {[
-              { label: 'Hoy',       fn: () => { setFechaInicio(TODAY); setFechaFin(TODAY); } },
-              { label: 'Semana',    fn: () => { setFechaInicio(getWeekStart()); setFechaFin(TODAY); } },
-              { label: 'Mes',       fn: () => { setFechaInicio(getMonthStart()); setFechaFin(TODAY); } },
+              { label: 'Hoy',     fn: () => applyQuickRange(TODAY, TODAY) },
+              { label: '30 días', fn: () => applyQuickRange(getLast30DaysStart(), TODAY) },
             ].map(({ label, fn }) => (
               <button key={label} onClick={fn} className={`${quickBtn} ${quickBtnIdle}`}>{label}</button>
             ))}
           </div>
+
+          {/* Filtros por tipo / subtipo */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Filter className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+            <MultiSelectFilter
+              options={(todosTipos ?? []).map((t) => ({ id: t.id, label: t.codigo ? `${t.codigo} - ${t.descripcion ?? ''}` : (t.descripcion ?? '') }))}
+              selected={tipoCasoIds}
+              onChange={(ids) => { setTipoCasoIds(ids); setSubTipoCasoIds([]); }}
+              placeholder="Tipo de caso"
+              singularLabel="tipo"
+              pluralLabel="tipos"
+            />
+            <MultiSelectFilter
+              options={subtipoGroups ? undefined : (todosSubtipos ?? []).map((s) => ({ id: s.id, label: s.codigo ? `${s.codigo} - ${s.descripcion ?? ''}` : (s.descripcion ?? '') }))}
+              groups={subtipoGroups}
+              selected={subTipoCasoIds}
+              onChange={setSubTipoCasoIds}
+              placeholder="Subtipo"
+              singularLabel="subtipo"
+              pluralLabel="subtipos"
+            />
+          </div>
         </div>
       </div>
+
+      {/* Banner filtro activo */}
+      {(tipoCasoIds.length > 0 || subTipoCasoIds.length > 0) && (
+        <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-xs text-green-700 dark:text-green-400">
+          <Filter className="h-3.5 w-3.5 shrink-0" />
+          <span>Filtrado por:</span>
+          {tipoCasoIds.length > 0 && (
+            <span className="font-semibold bg-green-100 dark:bg-green-900/40 px-2.5 py-0.5 rounded-full">
+              {tipoCasoIds.length} {tipoCasoIds.length === 1 ? 'tipo' : 'tipos'}
+            </span>
+          )}
+          {subTipoCasoIds.length > 0 && (
+            <span className="font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-2.5 py-0.5 rounded-full">
+              {subTipoCasoIds.length} {subTipoCasoIds.length === 1 ? 'subtipo' : 'subtipos'}
+            </span>
+          )}
+          <button
+            onClick={clearFilters}
+            className="ml-auto flex items-center gap-1 text-xs text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 font-semibold transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Limpiar filtros
+          </button>
+        </div>
+      )}
 
       {/* ── KPIs principales ───────────────────────────────────────────── */}
       {isLoading ? (
@@ -376,15 +459,28 @@ export default function DashboardPage() {
           <p className="text-center text-gray-400 text-sm py-6">No hay incidencias en el período</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(stats.recientes ?? []).map((inc: any) => (
-              <div key={inc.id} onClick={() => router.push(`/incidencias/${inc.id}`)}
+            {(stats.recientes ?? []).map((inc: any) => {
+              const tipoLabel = inc.tipoCaso?.codigo
+                ? `${inc.tipoCaso.codigo} - ${inc.tipoCaso.descripcion ?? ''}`
+                : (inc.tipoCaso?.descripcion || 'Sin tipo');
+              const subtipoLabel = inc.subTipoCaso?.descripcion ?? '';
+              const cardTooltip = [
+                inc.codigoIncidencia,
+                `Tipo: ${tipoLabel}`,
+                subtipoLabel && `Subtipo: ${subtipoLabel}`,
+                inc.direccion && `Dirección: ${inc.direccion}`,
+                inc.situacion?.descripcion && `Estado: ${inc.situacion.descripcion}`,
+              ].filter(Boolean).join('\n');
+
+              return (
+              <div key={inc.id} title={cardTooltip} onClick={() => router.push(`/incidencias/${inc.id}`)}
                 className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 hover:border-green-300 dark:hover:border-green-700 cursor-pointer transition-colors group">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 font-mono group-hover:text-green-700 dark:group-hover:text-green-400">
                     {inc.codigoIncidencia || `#${inc.id}`}
                   </p>
                   <p className="text-xs text-gray-400 truncate">
-                    {inc.tipoCaso?.descripcion || 'Sin tipo'}{inc.direccion ? ` · ${inc.direccion}` : ''}
+                    {tipoLabel}{subtipoLabel ? ` · ${subtipoLabel}` : ''}{inc.direccion ? ` · ${inc.direccion}` : ''}
                   </p>
                 </div>
                 <div className="ml-3 flex-shrink-0 flex flex-col items-end gap-1">
@@ -392,10 +488,83 @@ export default function DashboardPage() {
                   <span className="text-xs text-gray-400">{inc.registradoEn ? formatDate(inc.registradoEn, 'dd/MM HH:mm') : ''}</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </SectionCard>
+
+      {/* ── Botón de Pánico App — visible solo para roles en ROLES_PANICO ── */}
+      {puedeVerPanico && <SectionCard title=" Botón de Pánico — App Vecino Seguro SJL">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-red-100 dark:bg-red-900/40 rounded-xl">
+              <Smartphone className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              {panicoLoading ? <Skeleton className="h-7 w-12 mb-1" /> : (
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{panicoStats?.hoy ?? 0}</p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">Alertas hoy</p>
+            </div>
+          </div>
+          <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-orange-100 dark:bg-orange-900/40 rounded-xl">
+              <Activity className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              {panicoLoading ? <Skeleton className="h-7 w-12 mb-1" /> : (
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{panicoStats?.semana ?? 0}</p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">Últimos 7 días</p>
+            </div>
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-purple-100 dark:bg-purple-900/40 rounded-xl">
+              <ShieldAlert className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              {panicoLoading ? <Skeleton className="h-7 w-24 mb-1" /> : (
+                <p className="text-lg font-bold text-gray-800 dark:text-gray-100 truncate">
+                  {panicoStats?.porJurisdiccion?.[0]?.nombre ?? '—'}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">Jurisdicción con más alertas</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Barras por jurisdicción */}
+        {panicoLoading ? <Skeleton className="h-36" /> : (panicoStats?.porJurisdiccion ?? []).length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Alertas por Jurisdicción (últimos 7 días)</p>
+            {panicoStats!.porJurisdiccion.map((j) => {
+              const max = panicoStats!.porJurisdiccion[0].count;
+              const pct = max > 0 ? Math.round((j.count / max) * 100) : 0;
+              return (
+                <div key={j.nombre}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-xs text-gray-700 dark:text-gray-300 font-medium">{j.nombre}</span>
+                    <span className="text-xs font-bold text-gray-800 dark:text-gray-100">{j.count}</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-red-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 dark:text-gray-600 text-center py-4">Sin alertas en los últimos 7 días</p>
+        )}
+
+        <div className="mt-4 flex justify-end">
+          <Link href="/alertas-sjl"
+            className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline">
+            Ver todas las alertas →
+          </Link>
+        </div>
+      </SectionCard>}
 
     </div>
   );

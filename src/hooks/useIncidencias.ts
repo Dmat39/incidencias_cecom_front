@@ -41,13 +41,20 @@ export function useIncidencia(id: number) {
   });
 }
 
-export function useIncidenciasStats(fechaInicio?: string, fechaFin?: string) {
+export function useIncidenciasStats(
+  fechaInicio?: string,
+  fechaFin?: string,
+  tipoCasoIds?: number[],
+  subTipoCasoIds?: number[],
+) {
   return useQuery({
-    queryKey: [...KEYS.stats(), fechaInicio, fechaFin],
+    queryKey: [...KEYS.stats(), fechaInicio, fechaFin, tipoCasoIds, subTipoCasoIds],
     queryFn: async () => {
       const params: Record<string, string> = {};
-      if (fechaInicio) params.fechaInicio = fechaInicio;
-      if (fechaFin)    params.fechaFin    = fechaFin;
+      if (fechaInicio)              params.fechaInicio   = fechaInicio;
+      if (fechaFin)                 params.fechaFin      = fechaFin;
+      if (tipoCasoIds?.length)      params.tipoCasoIds   = tipoCasoIds.join(',');
+      if (subTipoCasoIds?.length)   params.subTipoCasoIds = subTipoCasoIds.join(',');
       const { data } = await api.get<ApiResponse<any>>('/incidencias/stats', { params });
       return data.data;
     },
