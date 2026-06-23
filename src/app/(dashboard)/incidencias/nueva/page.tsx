@@ -144,7 +144,7 @@ export default function NuevaIncidenciaPage() {
   const { data: jurisdicciones }     = useJurisdicciones();
   const { data: estados }            = useEstadoIncidencias();
 
-  const { control, register, handleSubmit, setValue, watch } = useForm<FormData>({
+  const { control, register, handleSubmit, setValue, watch, formState: { isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       nombreReportante:   prefill.nombre,
@@ -299,7 +299,7 @@ export default function NuevaIncidenciaPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <fieldset disabled={createMutation.isPending} className="contents">
+        <fieldset disabled={createMutation.isPending || isSubmitting} className="contents">
 
         {/* Banner: datos pre-cargados desde alerta de pánico */}
         {prefill.origen === 'panico' && (
@@ -850,9 +850,9 @@ export default function NuevaIncidenciaPage() {
           <Button
             type="submit"
             className="bg-green-600 hover:bg-green-700 min-w-40"
-            disabled={createMutation.isPending}
+            disabled={createMutation.isPending || isSubmitting}
           >
-            {createMutation.isPending ? (
+            {createMutation.isPending || isSubmitting ? (
               <span className="flex items-center gap-2">
                 <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
                 Registrando...

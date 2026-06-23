@@ -34,19 +34,21 @@ function SeveridadBadge({ descripcion }: { descripcion?: string }) {
 
 type DropdownFilters = Pick<FilterIncidenciaDto, 'situacionId' | 'unidadId' | 'jurisdiccionId' | 'severidadId' | 'tipoCasoId' | 'subTipoCasoId' | 'fechaInicio' | 'fechaFin'>;
 
+import { useIncidenciasStore } from '@/store/incidenciasStore';
+
 const EMPTY_PENDING: DropdownFilters = {};
 
 export default function IncidenciasPage() {
   const router = useRouter();
   const qc = useQueryClient();
 
-  // filters = lo que se envía al backend (solo cambia con Aplicar o paginación)
-  const [filters, setFilters] = useState<FilterIncidenciaDto>({ page: 1, limit: 20 });
-  // pendingFilters = lo que el usuario está ajustando en los dropdowns (aún no aplicado)
-  const [pending, setPending] = useState<DropdownFilters>(EMPTY_PENDING);
-  const [searchText, setSearchText] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  const {
+    filters, setFilters,
+    pending, setPending,
+    searchText, setSearchText,
+    showFilters, setShowFilters,
+    hasChanges, setHasChanges
+  } = useIncidenciasStore();
 
   // Debounce solo para el buscador de texto
   useEffect(() => {
