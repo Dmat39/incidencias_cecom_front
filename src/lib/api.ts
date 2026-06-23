@@ -71,11 +71,29 @@ api.interceptors.response.use(
         processQueue(null, newAccessToken);
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
+        // Manejo de concurrencia multi-pestaña:
+        // Si el refreshToken en localStorage es distinto al que intentamos usar,
+        // significa que otra pestaña ya logró renovar el token exitosamente.
+        const currentRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
+        if (currentRefreshToken && currentRefreshToken !== refreshToken) {
+          const newAccessToken = localStorage.getItem('accessToken');
+          processQueue(null, newAccessToken);
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return api(originalRequest);
+        }
+
         processQueue(refreshError, null);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+
+        // Solo desloguear si el backend rechazó explícitamente el token de refresco (401/403)
+        // Evitamos desloguear por errores de red (ej. servidor reiniciándose, 502)
+        if (refreshError.response && (refreshError.response.status === 401 || refreshError.response.status === 403)) {
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            window.location.href = '/login';
+          }
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
