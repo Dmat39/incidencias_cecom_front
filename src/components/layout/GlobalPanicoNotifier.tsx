@@ -98,7 +98,7 @@ export default function GlobalPanicoNotifier() {
           icon: '/favicon.ico',
           tag: 'alerta-panico',
           renotify: true,
-        });
+        } as NotificationOptions);
         notif.onclick = () => {
           window.focus();
           router.push('/alertas-sjl');
