@@ -7,6 +7,33 @@ import toast from 'react-hot-toast';
 import { Smartphone, X } from 'lucide-react';
 import { useSocket } from '@/hooks/useSocket';
 
+const ORIGINAL_TITLE = 'CECOM — Incidencias';
+const ALERT_TITLE    = '🚨 ALERTA DE PÁNICO';
+
+function playAlertSound() {
+  try {
+    const ctx  = new AudioContext();
+    const beep = (freq: number, start: number, duration: number) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + duration);
+    };
+    // tres beeps cortos ascendentes
+    beep(880, 0,    0.18);
+    beep(988, 0.22, 0.18);
+    beep(1174, 0.44, 0.28);
+  } catch {
+    // AudioContext no disponible — ignorar silenciosamente
+  }
+}
+
 /**
  * Componente global montado en el DashboardLayout.
  * Escucha 'alerta-panico-nueva' desde cualquier página del sistema
@@ -17,15 +44,67 @@ export default function GlobalPanicoNotifier() {
   const router      = useRouter();
   const pathname    = usePathname();
 
-  // Ref para leer el pathname actual dentro del callback (closure fija de useSocket)
-  const pathnameRef = useRef(pathname);
+  const pathnameRef   = useRef(pathname);
+  const blinkInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
+
+  // Pedir permiso de notificaciones del sistema (opcional — funciona aunque rechacen)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Detener parpadeo al volver a la pestaña
+  useEffect(() => {
+    const stop = () => {
+      if (!document.hidden) {
+        if (blinkInterval.current) {
+          clearInterval(blinkInterval.current);
+          blinkInterval.current = null;
+        }
+        document.title = ORIGINAL_TITLE;
+      }
+    };
+    document.addEventListener('visibilitychange', stop);
+    return () => document.removeEventListener('visibilitychange', stop);
+  }, []);
+
+  function startTitleBlink() {
+    if (blinkInterval.current) return; // ya está parpadeando
+    let visible = true;
+    blinkInterval.current = setInterval(() => {
+      document.title = visible ? ALERT_TITLE : ORIGINAL_TITLE;
+      visible = !visible;
+    }, 800);
+  }
 
   useSocket({
     'alerta-panico-nueva': (_payload: { alertaId: number }) => {
-      // Siempre refrescar el cache — cuando el operador entre al módulo verá datos frescos
       qc.invalidateQueries({ queryKey: ['panico', 'alertas'] });
       qc.invalidateQueries({ queryKey: ['panico', 'stats'] });
+
+      // Sonido — no requiere permiso
+      playAlertSound();
+
+      // Parpadeo de pestaña — visible desde cualquier otra pestaña, no requiere permiso
+      startTitleBlink();
+
+      // Notificación del sistema — solo si el operador aceptó el permiso
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
+        const notif = new Notification('🚨 Nueva alerta de pánico', {
+          body: 'Toca para ir al módulo de alertas',
+          icon: '/favicon.ico',
+          tag: 'alerta-panico',
+          renotify: true,
+        });
+        notif.onclick = () => {
+          window.focus();
+          router.push('/alertas-sjl');
+          notif.close();
+        };
+      }
 
       // Si ya está en el módulo, el refetch es suficiente — no mostrar toast duplicado
       if (pathnameRef.current === '/alertas-sjl') return;
@@ -41,7 +120,6 @@ export default function GlobalPanicoNotifier() {
             onClick={() => { toast.dismiss(t.id); router.push('/alertas-sjl'); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { toast.dismiss(t.id); router.push('/alertas-sjl'); } }}
           >
-            {/* Ícono pulsante */}
             <span className="relative flex-shrink-0">
               <span className="absolute inset-0 rounded-full bg-red-400 opacity-30 animate-ping" />
               <span className="relative flex items-center justify-center w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/40">
@@ -49,7 +127,6 @@ export default function GlobalPanicoNotifier() {
               </span>
             </span>
 
-            {/* Texto */}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
                 Nueva alerta de pánico
@@ -59,7 +136,6 @@ export default function GlobalPanicoNotifier() {
               </p>
             </div>
 
-            {/* Cerrar */}
             <button
               className="flex-shrink-0 p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }}
@@ -69,7 +145,7 @@ export default function GlobalPanicoNotifier() {
             </button>
           </div>
         ),
-        { duration: 12000, id: 'alerta-panico-nueva' }, // id fijo: evita duplicados si llegan varias rápido
+        { duration: 12000, id: 'alerta-panico-nueva' },
       );
     },
   });
