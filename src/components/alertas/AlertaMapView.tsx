@@ -112,6 +112,56 @@ function makeCameraIcon(tipo: 'municipal' | 'vecinal', zoom: number) {
   });
 }
 
+function makeBodycamIcon(zoom: number, activa: boolean) {
+  const s      = zoomScale(zoom);
+  const pinW   = Math.max(6, Math.round(32 * s));
+  const pinH   = Math.max(7, Math.round(38 * s));
+  const squSz  = Math.round(32 * s);
+  const svgSz  = Math.max(4, Math.round(13 * s));
+  const border = Math.max(1, Math.round(2.5 * s));
+  const showIcon = pinW >= 14;
+
+  const bg      = activa ? 'linear-gradient(135deg,#fb923c,#ea580c)' : 'linear-gradient(135deg,#d1d5db,#9ca3af)';
+  const glow    = activa ? 'rgba(234,88,12,.45)'                     : 'rgba(156,163,175,.45)';
+  const borderC = activa ? '#fed7aa'                                   : '#e5e7eb';
+
+  return L.divIcon({
+    html: `
+      <div style="position:relative;width:${pinW}px;height:${pinH}px;transition:all .15s;">
+        <div style="
+          position:absolute;top:0;left:0;width:${squSz}px;height:${squSz}px;
+          border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg);
+          background:${bg};
+          border:${border}px solid ${borderC};
+          box-shadow:0 4px 12px ${glow};
+        "></div>
+        ${showIcon ? `
+        <div style="
+          position:absolute;top:${Math.round(4 * s)}px;left:${Math.round(4 * s)}px;
+          width:${Math.round(24 * s)}px;height:${Math.round(24 * s)}px;
+          display:flex;align-items:center;justify-content:center;">
+          <svg xmlns='http://www.w3.org/2000/svg' width='${svgSz}' height='${svgSz}' viewBox='0 0 24 24'
+            fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'>
+            <rect x='2' y='7' width='20' height='13' rx='2'/>
+            <circle cx='12' cy='13' r='4'/>
+            <circle cx='12' cy='13' r='1.5' fill='white' stroke='none'/>
+            <path d='M7 7V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2'/>
+          </svg>
+        </div>` : ''}
+        <div style="
+          position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+          width:${Math.max(2, Math.round(6 * s))}px;height:${Math.max(2, Math.round(6 * s))}px;
+          border-radius:50%;background:${glow};filter:blur(2px);
+        "></div>
+      </div>`,
+    className: '',
+    iconSize:   [pinW, pinH],
+    iconAnchor: [Math.round(pinW / 2), pinH - 1],
+    popupAnchor: [0, -pinH],
+  });
+}
+
 function ZoomTracker({ onZoom }: { onZoom: (z: number) => void }) {
   useMapEvents({ zoom: (e) => onZoom((e.target as L.Map).getZoom()) });
   return null;
@@ -138,6 +188,17 @@ export interface RadioCercana {
   latitud: number;
   longitud: number;
   distancia_metros: number;
+}
+
+export interface BodycamCercana {
+  id: string | number;
+  codigo: string;
+  nombre?: string;
+  activa: boolean;
+  latitud: number;
+  longitud: number;
+  ultima_ubicacion?: string;
+  distanciaM?: number;
 }
 
 function isHexRedDominant(hex?: string): boolean {
@@ -209,9 +270,10 @@ interface Props {
   lng: number;
   camaras?: CamaraCercana[];
   radios?: RadioCercana[];
+  bodycams?: BodycamCercana[];
 }
 
-export default function AlertaMapView({ lat, lng, camaras = [], radios = [] }: Props) {
+export default function AlertaMapView({ lat, lng, camaras = [], radios = [], bodycams = [] }: Props) {
   const [zoom, setZoom] = useState(17);
 
   return (
@@ -310,6 +372,90 @@ export default function AlertaMapView({ lat, lng, camaras = [], radios = [] }: P
                       A <strong style={{ color: '#dc2626' }}>{radio.distancia_metros} m</strong> de la alerta
                     </span>
                   </div>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+
+      {/* Marcadores de bodycams */}
+      {bodycams.map((bc) => {
+        const accentColor = bc.activa ? '#ea580c' : '#9ca3af';
+        const badgeBg     = bc.activa ? '#ffedd5' : '#f3f4f6';
+        const badgeColor  = bc.activa ? '#c2410c' : '#6b7280';
+        const estadoLabel = bc.activa ? 'Activa' : 'Inactiva';
+
+        return (
+          <Marker
+            key={bc.id ?? bc.codigo}
+            position={[bc.latitud, bc.longitud]}
+            icon={makeBodycamIcon(zoom, bc.activa)}
+          >
+            <Popup minWidth={200} maxWidth={240}>
+              <div style={{ fontFamily: 'system-ui,sans-serif', margin: '-4px -4px' }}>
+                <div style={{
+                  background: accentColor,
+                  padding: '8px 12px',
+                  borderRadius: '6px 6px 0 0',
+                  display: 'flex', alignItems: 'center', gap: 7,
+                }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                    fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="7" width="20" height="13" rx="2"/>
+                    <circle cx="12" cy="13" r="4"/>
+                    <circle cx="12" cy="13" r="1.5" fill="white" stroke="none"/>
+                    <path d="M7 7V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2"/>
+                  </svg>
+                  <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>
+                    {bc.nombre ?? bc.codigo}
+                  </span>
+                </div>
+                <div style={{ padding: '10px 12px', background: 'white', borderRadius: '0 0 6px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div>
+                    <span style={{
+                      display: 'inline-block',
+                      background: badgeBg, color: badgeColor,
+                      fontSize: 10, fontWeight: 700,
+                      padding: '2px 7px', borderRadius: 20,
+                      letterSpacing: '0.04em',
+                    }}>
+                      {estadoLabel}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                      fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>Código: <strong style={{ color: '#374151' }}>{bc.codigo}</strong></span>
+                  </div>
+                  {bc.ultima_ubicacion && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                        fill="none" stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      <span style={{ fontSize: 11, color: '#6b7280' }}>
+                        {new Date(bc.ultima_ubicacion).toLocaleString('es-PE', { timeZone: 'America/Lima', dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    </div>
+                  )}
+                  {bc.distanciaM != null && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      background: '#f9fafb', borderRadius: 6, padding: '4px 8px',
+                      border: '1px solid #f3f4f6',
+                    }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                        fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>
+                        A <strong style={{ color: '#dc2626' }}>{bc.distanciaM} m</strong> de la alerta
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </Popup>

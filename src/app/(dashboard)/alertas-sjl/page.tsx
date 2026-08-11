@@ -242,6 +242,30 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerta.id]);
 
+  // Bodycams cercanas desde MIT (via Sivecam backend) — igual que radios
+  const [bodycams, setBodycams] = useState<any[]>([]);
+  const [bodycamsCargando, setBodycamsCargando] = useState(false);
+
+  useEffect(() => {
+    if (!alerta.latitud || !alerta.longitud) return;
+
+    const url = `${process.env.NEXT_PUBLIC_SIVECAM_API_URL}/api/bodycams/cercanas?lat=${alerta.latitud}&lng=${alerta.longitud}&radio=500`;
+
+    const fetchBodycams = (inicial = false) => {
+      if (inicial) setBodycamsCargando(true);
+      fetch(url)
+        .then((r) => r.json())
+        .then((data) => setBodycams(Array.isArray(data) ? data : (data?.data ?? [])))
+        .catch(() => {})
+        .finally(() => { if (inicial) setBodycamsCargando(false); });
+    };
+
+    fetchBodycams(true);
+    const interval = setInterval(() => fetchBodycams(false), 15_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerta.id]);
+
   // Sync local estado when parent updates (e.g. otro operador tomó la alerta via WebSocket)
   useEffect(() => {
     setEstadoPanico(alerta.estadoApp ?? null);
@@ -439,6 +463,7 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
                     lng={alerta.longitud!}
                     camaras={camaras}
                     radios={radios}
+                    bodycams={bodycams}
                   />
                 </div>
                 {/* Leyenda */}
@@ -468,6 +493,15 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
                       <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
                         <span className="inline-block w-3 h-3 rounded bg-green-500" />
                         Radios ({radios.length})
+                      </span>
+                    )
+                  }
+                  {bodycamsCargando
+                    ? <span className="text-[10px] text-gray-400 animate-pulse">Buscando bodycams...</span>
+                    : bodycams.length > 0 && (
+                      <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                        <span className="inline-block w-3 h-3 rounded bg-orange-500" />
+                        Bodycams ({bodycams.length})
                       </span>
                     )
                   }
