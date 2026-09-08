@@ -3,12 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { useIncidencia, useUpdateAtencion, useUpdateIncidencia, useAssignSerenos, useUploadEvidencia, useEvidencias } from '@/hooks/useIncidencias';
+import { useIncidencia, useUpdateIncidencia, useUploadEvidencia, useEvidencias } from '@/hooks/useIncidencias';
 import { useCamarasCercanas } from '@/hooks/useCamarasCercanas';
-import { useSerenosActivos } from '@/hooks/useSerenos';
 import {
-  useEstadoIncidencias, useEstadoProcesos, useGeneroAgresor,
-  useGeneroVictima, useSeveridadProcesos, useSeveridades, useMedios, useOperadores,
+  useEstadoIncidencias, useSeveridades, useMedios,
   useUnidades, useTipoCasosByUnidad, useSubTipoCasosByTipo, useJurisdicciones,
   useTipoReportantes, useOperadoresByMedio,
 } from '@/hooks/useCatalogos';
@@ -21,10 +19,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Save, Upload, UserCheck, X, FileText, Film, File, ZoomIn, Pencil } from 'lucide-react';
+import { ArrowLeft, Save, Upload, X, FileText, File, ZoomIn, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDate } from '@/lib/date';
-import type { UpdateAtencionDto, CreateIncidenciaDto } from '@/types';
+import type { CreateIncidenciaDto } from '@/types';
 
 const MapView = dynamic(() => import('@/components/mapa/MapView'), { ssr: false });
 const MapPicker = dynamic(() => import('@/components/incidencias/MapPicker'), { ssr: false });
@@ -44,29 +42,19 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
   const incId = Number(id);
 
   const { data: inc, isLoading } = useIncidencia(incId);
-  const { data: estados,           isLoading: loadingEstados }           = useEstadoIncidencias();
-  const { data: estadosProceso,   isLoading: loadingEstadosProceso }   = useEstadoProcesos();
-  const { data: generosAgresor,   isLoading: loadingGenerosAgresor }   = useGeneroAgresor();
-  const { data: generosVictima,   isLoading: loadingGenerosVictima }   = useGeneroVictima();
-  const { data: severidadProcesos, isLoading: loadingSeveridadProcesos } = useSeveridadProcesos();
-  const { data: severidades,       isLoading: loadingSeveridades }       = useSeveridades();
+  const { data: estados } = useEstadoIncidencias();
+  const { data: severidades,   isLoading: loadingSeveridades }   = useSeveridades();
   const { data: medios,            isLoading: loadingMedios }            = useMedios();
-  const { data: operadores,        isLoading: loadingOperadores }        = useOperadores();
-  const { data: serenos } = useSerenosActivos();
 
   // Catálogos para el tab General (edición)
   const { data: unidades } = useUnidades();
   const { data: jurisdicciones } = useJurisdicciones();
   const { data: tipoReportantes } = useTipoReportantes();
 
-  const updateAtencion = useUpdateAtencion(incId);
   const updateInc = useUpdateIncidencia(incId);
-  const assignSerenos = useAssignSerenos(incId);
   const uploadEvidencia = useUploadEvidencia(incId);
   const { data: evidencias = [] } = useEvidencias(incId);
 
-  const [atencionForm, setAtencionForm] = useState<UpdateAtencionDto>({});
-  const [serenoSearch, setSerenoSearch] = useState('');
   const [fileInput, setFileInput] = useState<File | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
@@ -183,39 +171,12 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
     return <div className="text-center py-16 text-gray-400">Incidencia no encontrada</div>;
   }
 
-  const assignedSerenoIds = (inc.serenos || []).map((s) => s.sereno.id);
-  const filteredSerenos = serenos?.filter(
-    (s) =>
-      `${s.nombres} ${s.apellidoPaterno} ${s.dni}`.toLowerCase().includes(serenoSearch.toLowerCase())
-  );
-
-  async function handleAtencionSubmit() {
-    try {
-      await updateAtencion.mutateAsync(atencionForm);
-      toast.success('Atención registrada');
-    } catch {
-      toast.error('Error al guardar');
-    }
-  }
-
   async function handleEstadoChange(situacionId: string) {
     try {
       await updateInc.mutateAsync({ situacionId: Number(situacionId) });
       toast.success('Estado actualizado');
     } catch {
       toast.error('Error al actualizar estado');
-    }
-  }
-
-  async function handleToggleSereno(serenoId: number) {
-    const ids = assignedSerenoIds.includes(serenoId)
-      ? assignedSerenoIds.filter((id) => id !== serenoId)
-      : [...assignedSerenoIds, serenoId];
-    try {
-      await assignSerenos.mutateAsync(ids);
-      toast.success('Serenos actualizados');
-    } catch {
-      toast.error('Error al asignar sereno');
     }
   }
 
@@ -264,7 +225,6 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
       <Tabs defaultValue="general">
         <TabsList className="bg-gray-100 dark:bg-gray-800">
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="atencion">Atención</TabsTrigger>
           {/* <TabsTrigger value="serenos">Serenos</TabsTrigger> */}
           <TabsTrigger value="evidencias">Evidencias</TabsTrigger>
           <TabsTrigger value="mapa">Mapa</TabsTrigger>
@@ -527,177 +487,6 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* TAB: Atención */}
-        <TabsContent value="atencion">
-          <Card className="border border-gray-200 dark:border-gray-700">
-            <CardContent className="p-5 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1 md:col-span-2">
-                  <Label>Descripción de intervención</Label>
-                  <Textarea
-                    rows={3}
-                    defaultValue={inc.descripcionIntervencion || ''}
-                    onChange={(e) => setAtencionForm((f) => ({ ...f, descripcionIntervencion: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Nombre del agraviado</Label>
-                  <Input
-                    defaultValue={inc.nombreAgraviado || ''}
-                    onChange={(e) => setAtencionForm((f) => ({ ...f, nombreAgraviado: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Teléfono del agraviado</Label>
-                  <Input
-                    defaultValue={inc.telefonoAgraviado || ''}
-                    onChange={(e) => setAtencionForm((f) => ({ ...f, telefonoAgraviado: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Estado del proceso</Label>
-                  <Select
-                    key={`ep-${estadosProceso?.length}`}
-                    defaultValue={inc.estadoProcesoId ? String(inc.estadoProcesoId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, estadoProcesoId: Number(v) }))}
-                    disabled={loadingEstadosProceso}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingEstadosProceso ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {estadosProceso?.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Género agresor</Label>
-                  <Select
-                    key={`ga-${generosAgresor?.length}`}
-                    defaultValue={inc.generoAgresorId ? String(inc.generoAgresorId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, generoAgresorId: Number(v) }))}
-                    disabled={loadingGenerosAgresor}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingGenerosAgresor ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {generosAgresor?.map((g) => <SelectItem key={g.id} value={String(g.id)}>{g.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Género víctima</Label>
-                  <Select
-                    key={`gv-${generosVictima?.length}`}
-                    defaultValue={inc.generoVictimaId ? String(inc.generoVictimaId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, generoVictimaId: Number(v) }))}
-                    disabled={loadingGenerosVictima}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingGenerosVictima ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {generosVictima?.map((g) => <SelectItem key={g.id} value={String(g.id)}>{g.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Severidad del proceso</Label>
-                  <Select
-                    key={`sp-${severidadProcesos?.length}`}
-                    defaultValue={inc.severidadProcesoId ? String(inc.severidadProcesoId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, severidadProcesoId: Number(v) }))}
-                    disabled={loadingSeveridadProcesos}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingSeveridadProcesos ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {severidadProcesos?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Severidad</Label>
-                  <Select
-                    key={`sv-${severidades?.length}`}
-                    defaultValue={inc.severidadId ? String(inc.severidadId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, severidadId: Number(v) }))}
-                    disabled={loadingSeveridades}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingSeveridades ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {severidades?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Situación</Label>
-                  <Select
-                    key={`sit-${estados?.length}`}
-                    defaultValue={inc.situacionId ? String(inc.situacionId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, situacionId: Number(v) }))}
-                    disabled={loadingEstados}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingEstados ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {estados?.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Medio</Label>
-                  <Select
-                    key={`med-${medios?.length}`}
-                    defaultValue={inc.medioId ? String(inc.medioId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, medioId: Number(v) }))}
-                    disabled={loadingMedios}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingMedios ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {medios?.map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Operador</Label>
-                  <Select
-                    key={`op-${operadores?.length}`}
-                    defaultValue={inc.operadorId ? String(inc.operadorId) : undefined}
-                    onValueChange={(v) => setAtencionForm((f) => ({ ...f, operadorId: Number(v) }))}
-                    disabled={loadingOperadores}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingOperadores ? 'Cargando...' : 'Seleccionar'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {operadores?.map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.descripcion}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Fecha/Hora de atención</Label>
-                  <Input
-                    type="datetime-local"
-                    defaultValue={inc.atendidoEn ? inc.atendidoEn.slice(0, 16) : ''}
-                    onChange={(e) => setAtencionForm((f) => ({ ...f, atendidoEn: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <Button onClick={handleAtencionSubmit} className="bg-green-600 hover:bg-green-700" disabled={updateAtencion.isPending}>
-                <Save className="h-4 w-4 mr-2" /> Guardar Atención
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
