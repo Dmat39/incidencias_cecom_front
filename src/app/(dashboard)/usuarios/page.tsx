@@ -16,7 +16,6 @@ import {
 import toast from 'react-hot-toast';
 import type { Usuario, CreateUsuarioDto, Sereno, Jurisdiccion } from '@/types';
 
-const ROLES = ['admin', 'validador', 'operador', 'supervisor'];
 const PAGE_SIZES = [10, 20, 50, 100];
 
 const MODULOS: { key: string; label: string }[] = [
@@ -605,7 +604,7 @@ export default function UsuariosPage() {
               <div className="space-y-2">
                 <Label>Roles</Label>
                 <div className="flex flex-wrap gap-2">
-                  {ROLES.map((role) => (
+                  {roles.map(({ nombre: role }) => (
                     <button
                       key={role}
                       type="button"
