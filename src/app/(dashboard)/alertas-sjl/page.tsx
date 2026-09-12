@@ -557,13 +557,21 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
 
             {/* Incidencia registrada (banner) */}
             {incidenciaCecom && (
-              <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3">
+              <button
+                type="button"
+                onClick={() => router.push(`/incidencias/${incidenciaCecom.id}`)}
+                title="Abrir la incidencia"
+                className="w-full flex items-center gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3 text-left hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+              >
                 <FileCheck className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-xs font-semibold text-green-700 dark:text-green-400">Incidencia CECOM registrada</p>
-                  <p className="text-xs text-green-600 dark:text-green-500">{incidenciaCecom.codigoIncidencia}</p>
+                  <p className="text-sm font-mono font-semibold text-green-700 dark:text-green-400">
+                    {incidenciaCecom.codigoIncidencia || 'sin código'}
+                  </p>
                 </div>
-              </div>
+                <ExternalLink className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+              </button>
             )}
 
             {/* Botones principales: Crear incidencia | Ver en Google Maps */}
