@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useIncidencia, useUpdateIncidencia, useUploadEvidencia, useEvidencias } from '@/hooks/useIncidencias';
 import { useCamarasCercanas } from '@/hooks/useCamarasCercanas';
+import { useAuthStore } from '@/store/authStore';
 import {
   useEstadoIncidencias, useSeveridades, useMedios,
   useUnidades, useTipoCasosByUnidad, useSubTipoCasosByTipo, useJurisdicciones,
@@ -67,6 +68,10 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
   const editUnidadId = generalForm.unidadId ?? inc?.unidadId;
   const editTipoCasoId = generalForm.tipoCasoId ?? inc?.tipoCasoId;
   const editMedioId = generalForm.medioId ?? inc?.medioId;
+
+  // El medio fija el prefijo del código y el código no se regenera al editar,
+  // así que solo un admin puede cambiarlo (el backend lo rechaza con 403).
+  const esAdmin = useAuthStore((st) => st.user?.roles?.includes('admin') ?? false);
   const { data: tipoCasosFiltrados } = useTipoCasosByUnidad(editingGeneral ? editUnidadId : undefined);
   const { data: subTipoCasosFiltrados } = useSubTipoCasosByTipo(editingGeneral ? editTipoCasoId : undefined);
   const { data: operadoresFiltrados } = useOperadoresByMedio(editingGeneral ? editMedioId : undefined);
@@ -330,13 +335,16 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                     <Select
                       value={generalForm.medioId ? String(generalForm.medioId) : undefined}
                       onValueChange={(v) => setGeneralForm((f) => ({ ...f, medioId: Number(v), operadorId: undefined }))}
-                      disabled={loadingMedios}
+                      disabled={loadingMedios || !esAdmin}
                     >
                       <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                       <SelectContent>
                         {medios?.map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.descripcion}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    {!esAdmin && (
+                      <p className="text-xs text-gray-500">Solo un administrador puede cambiar el medio.</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label>Operador</Label>
