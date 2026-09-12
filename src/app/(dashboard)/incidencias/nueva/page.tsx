@@ -90,6 +90,10 @@ export default function NuevaIncidenciaPage() {
   const [selectedUnidad,      setSelectedUnidad]      = useState<number | undefined>();
   const [selectedTipoCaso,    setSelectedTipoCaso]    = useState<number | undefined>();
   const [selectedMedio,       setSelectedMedio]       = useState<number | undefined>(prefill.medioId);
+
+  // Una incidencia que nace de una alerta del botón de pánico debe quedarse en
+  // ese medio: es lo que hace que su código salga con prefijo BPD.
+  const vieneDePanico = prefill.origen === 'panico';
   const [severidadAutoFilled,    setSeveridadAutoFilled]    = useState(false);
   const [geocodingLoading,       setGeocodingLoading]       = useState(false);
   const [selectedTipoReportante, setSelectedTipoReportante] = useState<CatalogoItem | null>(null);
@@ -447,6 +451,7 @@ export default function NuevaIncidenciaPage() {
               <Controller name="medioId" control={control} render={({ field }) => (
                 <Select
                   value={field.value ? String(field.value) : undefined}
+                  disabled={vieneDePanico}
                   onValueChange={(v) => {
                     const n = Number(v); field.onChange(n);
                     setSelectedMedio(n);
@@ -458,6 +463,11 @@ export default function NuevaIncidenciaPage() {
                   </SelectContent>
                 </Select>
               )} />
+              {vieneDePanico && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Fijado por venir de una alerta del botón de pánico.
+                </p>
+              )}
             </Field>
 
             <Field label="Operador">

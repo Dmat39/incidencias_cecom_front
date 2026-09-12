@@ -292,7 +292,7 @@ function DetallePanel({ alerta, onClose }: DetallePanelProps) {
         .substring(0, 16);
       p.set('ocurridoEn', dt);
     }
-    p.set('medioId',          '3');  // APP Vecino Seguro SJL
+    p.set('medioId',          '9');  // 9 = Botón de Pánico Digital (antes apuntaba al 3, que era Transporte y ya no existe)
     p.set('tipoReportanteId', '1');  // Vecino / ciudadano
     p.set('origen',           'panico');
     p.set('panicAlertId',     String(panicAlertId));
