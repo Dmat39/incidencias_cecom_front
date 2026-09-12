@@ -115,24 +115,37 @@ export default function NuevaIncidenciaPage() {
         const res = await fetch('/juridiccion.geojson');
         geojsonCache.current = await res.json();
       }
-      const { point, booleanPointInPolygon, polygon } = await import('@turf/turf');
+      const { point, booleanPointInPolygon, polygon, multiPolygon } = await import('@turf/turf');
       const punto = point([lng, lat]);
       const features: any[] = geojsonCache.current?.features ?? [];
       for (const feat of features) {
-        if (!feat.geometry?.coordinates) continue;
-        const poly = polygon(feat.geometry.coordinates);
-        if (booleanPointInPolygon(punto, poly)) {
-          const nombre = (feat.properties?.name ?? '').toLowerCase().trim();
-          const match = juris.find((j) =>
-            (j.nombre ?? j.descripcion ?? '').toLowerCase().trim() === nombre
-          );
+        const geom = feat?.geometry;
+        if (!geom?.coordinates) continue;
+        const dentro =
+          geom.type === 'MultiPolygon'
+            ? booleanPointInPolygon(punto, multiPolygon(geom.coordinates))
+            : booleanPointInPolygon(punto, polygon(geom.coordinates));
+        if (dentro) {
+          const nombreGeo = (feat.properties?.name ?? '').toLowerCase().trim();
+          // Coincidencia parcial, igual que el backend: los nombres del GeoJSON
+          // y los de la BD no son idénticos ('Huayrona' vs 'LA HUAYRONA'), y con
+          // igualdad estricta esa jurisdicción nunca se detectaba.
+          const match = juris.find((j) => {
+            const nombreDb = (j.nombre ?? j.descripcion ?? '').toLowerCase().trim();
+            if (!nombreDb || !nombreGeo) return false;
+            return nombreDb === nombreGeo || nombreDb.includes(nombreGeo) || nombreGeo.includes(nombreDb);
+          });
           if (match) {
             setActiveJurisdiccionName(feat.properties?.name);
             return match.id;
           }
+          console.warn(`[jurisdiccion] el punto cae en "${feat.properties?.name}" pero no hay jurisdicción con ese nombre en el catálogo`);
         }
       }
-    } catch { /* silencioso */ }
+      console.warn(`[jurisdiccion] ninguna jurisdicción contiene el punto ${lat}, ${lng}`);
+    } catch (e) {
+      console.error('[jurisdiccion] fallo la detección automática:', e);
+    }
     setActiveJurisdiccionName(undefined);
     return null;
   }
