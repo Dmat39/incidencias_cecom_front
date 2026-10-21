@@ -25,6 +25,8 @@ import type { CreateIncidenciaDto, Incidencia } from '@/types';
 import { useGestionate } from '@/hooks/useGestionate';
 import api from '@/lib/api';
 import EvidenciasUploader, { type ArchivoEvidencia } from '@/components/incidencias/EvidenciasUploader';
+import ApoyoIncidenciaFields from '@/components/incidencias/ApoyoIncidenciaFields';
+import ConfirmarIncidenciaDialog, { type ResumenIncidencia } from '@/components/incidencias/ConfirmarIncidenciaDialog';
 
 const MapPicker = dynamic(() => import('@/components/incidencias/MapPicker'), { ssr: false });
 
@@ -45,6 +47,12 @@ const schema = z.object({
   severidadId:       z.number().optional(),
   jurisdiccionId:    z.number().optional(),
   situacionId:       z.number().optional(),
+  apoyoConvenio:            z.boolean(),
+  participacionMotorizados: z.boolean(),
+  tipoMotos:                z.enum(['ANTIGUAS', 'NUEVAS', 'AMBAS']).optional(),
+}).refine((d) => !d.participacionMotorizados || !!d.tipoMotos, {
+  path: ['tipoMotos'],
+  message: 'Indique qué motos participaron',
 });
 type FormData = z.infer<typeof schema>;
 
@@ -102,6 +110,9 @@ export default function NuevaIncidenciaPage() {
   const [serenoSearchMode,       setSerenoSearchMode]       = useState<'dni' | 'nombre'>('dni');
   const [serenoNombreQuery,      setSerenoNombreQuery]      = useState('');
   const [archivosEvidencia,      setArchivosEvidencia]      = useState<ArchivoEvidencia[]>([]);
+  // Valores ya validados esperando la confirmación del operador
+  const [pendiente,              setPendiente]              = useState<FormData | null>(null);
+  const [registrando,            setRegistrando]            = useState(false);
   const debounceRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nombreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { personal: personalGestionate, fuente: gestionateFuente, loading: gestionateLoading, notFound: gestionateNotFound, nombreResults: serenoNombreResults, nombreLoading: serenoNombreLoading, buscarPorDni, buscarPorNombre, seleccionarPorNombre, guardarLocal, limpiar: limpiarGestionate } = useGestionate();
@@ -161,9 +172,11 @@ export default function NuevaIncidenciaPage() {
   const { data: jurisdicciones }     = useJurisdicciones();
   const { data: estados }            = useEstadoIncidencias();
 
-  const { control, register, handleSubmit, setValue, watch, formState: { isSubmitting } } = useForm<FormData>({
+  const { control, register, handleSubmit, setValue, watch, formState: { isSubmitting, errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
+      apoyoConvenio:            false,
+      participacionMotorizados: false,
       nombreReportante:   prefill.nombre,
       telefonoReportante: prefill.telefono,
       latitud:            prefill.lat,
@@ -241,6 +254,48 @@ export default function NuevaIncidenciaPage() {
       .finally(() => setGeocodingLoading(false));
   }, [prefill.lat, prefill.lng, prefill.direccion]);
 
+  function nombreDe(lista: CatalogoItem[] | undefined, id?: number) {
+    const item = id ? lista?.find((x) => x.id === id) : undefined;
+    return item ? (item.descripcion || item.nombre) : undefined;
+  }
+
+  function armarResumen(v: FormData): ResumenIncidencia {
+    const medio = v.medioId ? medios?.find((m: CatalogoItem) => m.id === v.medioId) : undefined;
+    const clasificacion = [
+      nombreDe(unidades, v.unidadId),
+      nombreDe(tiposCasoFiltrados, v.tipoCasoId),
+      nombreDe(subTiposFiltrados, v.subTipoCasoId),
+    ].filter(Boolean).join(' › ');
+    const reportante = [
+      nombreDe(tipoReportantes, v.tipoReportanteId),
+      v.nombreReportante,
+      v.telefonoReportante,
+    ].filter(Boolean).join(' · ');
+    return {
+      medio:                    medio?.descripcion,
+      prefijoCodigo:            medio?.codigo,
+      operador:                 nombreDe(operadoresFiltrados, v.operadorId),
+      apoyoConvenio:            v.apoyoConvenio,
+      participacionMotorizados: v.participacionMotorizados,
+      tipoMotos:                v.tipoMotos,
+      clasificacion:            clasificacion || undefined,
+      reportante:               reportante || undefined,
+      direccion:                v.direccion,
+      jurisdiccion:             nombreDe(jurisdicciones, v.jurisdiccionId),
+      evidencias:               archivosEvidencia.length,
+    };
+  }
+
+  async function confirmarRegistro() {
+    if (!pendiente) return;
+    setRegistrando(true);
+    try {
+      await onSubmit(pendiente);
+    } finally {
+      setRegistrando(false);
+    }
+  }
+
   async function onSubmit(values: FormData) {
     // 1. Crear incidencia — si falla, parar aquí
     if (!values.telefonoReportante?.trim()) {
@@ -315,7 +370,15 @@ export default function NuevaIncidenciaPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <ConfirmarIncidenciaDialog
+        open={!!pendiente}
+        onOpenChange={(o) => { if (!o) setPendiente(null); }}
+        resumen={pendiente ? armarResumen(pendiente) : null}
+        onConfirm={confirmarRegistro}
+        loading={registrando}
+      />
+
+      <form onSubmit={handleSubmit(setPendiente, () => toast.error('Revise los campos marcados'))} className="space-y-4">
         <fieldset disabled={createMutation.isPending || isSubmitting} className="contents">
 
         {/* Banner: datos pre-cargados desde alerta de pánico */}
@@ -810,6 +873,26 @@ export default function NuevaIncidenciaPage() {
               </div>
               <p className="text-xs text-gray-400">Si no se indica, se usará la hora de registro</p>
             </Field>
+          </div>
+        </div>
+
+        {/* Apoyo recibido */}
+        <div className="bg-white dark:bg-gray-900 rounded shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <SectionTitle title="Apoyo recibido" />
+          <div className="p-5">
+            <ApoyoIncidenciaFields
+              value={{
+                apoyoConvenio:            watch('apoyoConvenio'),
+                participacionMotorizados: watch('participacionMotorizados'),
+                tipoMotos:                watch('tipoMotos'),
+              }}
+              onChange={(v) => {
+                setValue('apoyoConvenio', v.apoyoConvenio ?? false);
+                setValue('participacionMotorizados', v.participacionMotorizados ?? false);
+                setValue('tipoMotos', v.tipoMotos, { shouldValidate: !!errors.tipoMotos });
+              }}
+              errorTipoMotos={errors.tipoMotos?.message}
+            />
           </div>
         </div>
 

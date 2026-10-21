@@ -12,6 +12,7 @@ import {
   useTipoReportantes, useOperadoresByMedio,
 } from '@/hooks/useCatalogos';
 import EstadoBadge from '@/components/incidencias/EstadoBadge';
+import ApoyoIncidenciaFields, { TIPO_MOTOS_LABEL, siNoLabel } from '@/components/incidencias/ApoyoIncidenciaFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,6 +77,15 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
   const { data: subTipoCasosFiltrados } = useSubTipoCasosByTipo(editingGeneral ? editTipoCasoId : undefined);
   const { data: operadoresFiltrados } = useOperadoresByMedio(editingGeneral ? editMedioId : undefined);
 
+  // null (incidencias anteriores a estos campos) se trata como "sin marcar"
+  function apoyoOriginal(): Partial<CreateIncidenciaDto> {
+    return {
+      apoyoConvenio: inc?.apoyoConvenio ?? undefined,
+      participacionMotorizados: inc?.participacionMotorizados ?? undefined,
+      tipoMotos: inc?.tipoMotos ?? undefined,
+    };
+  }
+
   function startEditGeneral() {
     setGeneralForm({
       unidadId: inc?.unidadId,
@@ -92,6 +102,7 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
       latitud: inc?.latitud ? Number(inc.latitud) : undefined,
       longitud: inc?.longitud ? Number(inc.longitud) : undefined,
       descripcion: inc?.descripcion,
+      ...apoyoOriginal(),
     });
     setEditingGeneral(true);
   }
@@ -113,7 +124,13 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
       latitud: inc?.latitud ? Number(inc.latitud) : undefined,
       longitud: inc?.longitud ? Number(inc.longitud) : undefined,
       descripcion: inc?.descripcion ?? '',
+      ...apoyoOriginal(),
     };
+
+    if (generalForm.participacionMotorizados && !generalForm.tipoMotos) {
+      toast.error('Indique qué motos participaron');
+      return;
+    }
 
     const diff = (Object.keys(generalForm) as (keyof CreateIncidenciaDto)[]).reduce(
       (acc, key) => {
@@ -452,6 +469,15 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                       onChange={(e) => setGeneralForm((f) => ({ ...f, descripcion: e.target.value }))}
                     />
                   </div>
+                  <div className="md:col-span-2 border-t pt-3">
+                    <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-3">Apoyo recibido</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <ApoyoIncidenciaFields
+                      value={generalForm}
+                      onChange={(v) => setGeneralForm((f) => ({ ...f, ...v }))}
+                    />
+                  </div>
                 </div>
               ) : (
                 /* MODO LECTURA */
@@ -492,6 +518,16 @@ export default function IncidenciaDetailPage({ params }: { params: { id: string 
                     <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded-md p-3 border border-gray-100 dark:border-gray-700/50">
                       {inc.descripcion || <span className="text-gray-400 italic">Sin descripción</span>}
                     </p>
+                  </div>
+                  <div className="md:col-span-2 mt-2 space-y-2">
+                    <p className="text-xs text-green-700 dark:text-green-400 font-semibold uppercase tracking-wide mb-2">Apoyo recibido</p>
+                    <DataRow label="Apoyo de convenio" value={siNoLabel(inc.apoyoConvenio)} />
+                    <DataRow
+                      label="Motorizados (Hermes)"
+                      value={inc.participacionMotorizados && inc.tipoMotos
+                        ? `Sí — ${TIPO_MOTOS_LABEL[inc.tipoMotos]}`
+                        : siNoLabel(inc.participacionMotorizados)}
+                    />
                   </div>
                 </div>
               )}
