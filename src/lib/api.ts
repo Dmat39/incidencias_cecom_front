@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { useAuthStore } from '@/store/authStore';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
@@ -53,8 +54,7 @@ api.interceptors.response.use(
       if (!refreshToken) {
         isRefreshing = false;
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
+          useAuthStore.getState().logout();
           window.location.href = '/login';
         }
         return Promise.reject(error);
@@ -89,8 +89,7 @@ api.interceptors.response.use(
         // Evitamos desloguear por errores de red (ej. servidor reiniciándose, 502)
         if (refreshError.response && (refreshError.response.status === 401 || refreshError.response.status === 403)) {
           if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
+            useAuthStore.getState().logout();
             window.location.href = '/login';
           }
         }

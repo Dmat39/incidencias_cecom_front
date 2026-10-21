@@ -143,6 +143,9 @@ export interface Evidencia {
 
 // ─── INCIDENCIA ───────────────────────────────────────────────────────────────
 
+/** Motos de los motorizados (Hermes): NUEVAS = donadas por la Municipalidad de Lima */
+export type TipoMotos = 'ANTIGUAS' | 'NUEVAS' | 'AMBAS';
+
 export interface Incidencia {
   id: number;
   codigoIncidencia?: string;
@@ -164,6 +167,10 @@ export interface Incidencia {
   longitud?: number | string;
   // Descripción
   descripcion?: string;
+  // Apoyo recibido (null = registrada antes de existir estos campos)
+  apoyoConvenio?: boolean | null;
+  participacionMotorizados?: boolean | null;
+  tipoMotos?: TipoMotos | null;
   // Temporalidad
   registradoEn?: string;
   ocurridoEn?: string;
@@ -221,6 +228,9 @@ export interface CreateIncidenciaDto {
   situacionId?: number;
   medioId?: number;
   operadorId?: number;
+  apoyoConvenio?: boolean;
+  participacionMotorizados?: boolean;
+  tipoMotos?: TipoMotos;
 }
 
 export interface UpdateAtencionDto {
